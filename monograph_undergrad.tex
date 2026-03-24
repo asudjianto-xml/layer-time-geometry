@@ -2086,6 +2086,433 @@ what language models do.
 
 
 % ══════════════════════════════════════════════════════════════════════════════
+% APPENDICES
+% ══════════════════════════════════════════════════════════════════════════════
+\appendix
+
+% ╔════════════════════════════════════════════════════════════════════════════╗
+% ║  APPENDIX A: Neural Networks and Transformers                            ║
+% ╚════════════════════════════════════════════════════════════════════════════╝
+
+\chapter{Introduction to Neural Networks and Transformers}
+\label{app:nn-transformers}
+
+% (no companion notebook for this appendix)
+
+This appendix provides the background you need to understand what a
+transformer language model \emph{does}, so that the geometric tools in the
+main text make sense. If you have taken a machine learning course, you can
+skim quickly. If not, read carefully---everything in this book builds on
+these ideas.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{From linear models to neural networks}
+
+A \textbf{linear model} predicts an output~$y$ from an input vector~$\mathbf{x}$
+using a weighted sum:
+\[
+  y = \mathbf{w}^\top \mathbf{x} + b
+  = w_1 x_1 + w_2 x_2 + \cdots + w_p x_p + b.
+\]
+The weights~$\mathbf{w}$ and bias~$b$ are learned from data.  This is
+powerful---logistic regression, linear SVM, and ordinary least squares are
+all linear models---but it can only capture straight-line (hyperplane)
+decision boundaries.
+
+A \textbf{neural network} stacks multiple layers of linear transformations
+with \emph{nonlinear activation functions} in between:
+\[
+  \mathbf{h}^{(1)} = \sigma(\mathbf{W}^{(1)} \mathbf{x} + \mathbf{b}^{(1)}),
+  \qquad
+  \mathbf{h}^{(2)} = \sigma(\mathbf{W}^{(2)} \mathbf{h}^{(1)} + \mathbf{b}^{(2)}),
+  \qquad \ldots
+\]
+where $\sigma$ is a nonlinear function (ReLU, sigmoid, tanh, etc.).  Each
+intermediate vector~$\mathbf{h}^{(l)}$ is called a \textbf{hidden state}
+at layer~$l$.
+
+\begin{keyidea}
+The nonlinearity is what gives neural networks their power.  Without it,
+stacking layers would reduce to a single linear transformation---no matter
+how many layers you add.
+\end{keyidea}
+
+\begin{analogy}
+Think of an assembly line.  Each station (layer) receives a work-in-progress
+item (hidden state), transforms it, and passes it to the next station.
+By the final station, the raw material has become a finished product.
+\end{analogy}
+
+\subsection{How networks learn: gradient descent}
+
+A neural network learns by minimizing a \textbf{loss function}~$\mathcal{L}$
+that measures how far the network's predictions are from the true answers.
+The key algorithm is \textbf{gradient descent}:
+\begin{enumerate}[nosep]
+\item \textbf{Forward pass:} compute the network's output for a batch of inputs.
+\item \textbf{Compute loss:} compare the output to the correct answer.
+\item \textbf{Backward pass (backpropagation):} compute
+  $\partial \mathcal{L} / \partial \mathbf{W}^{(l)}$ for every layer.
+\item \textbf{Update:} nudge each weight in the direction that reduces the loss:
+  $\mathbf{W} \leftarrow \mathbf{W} - \eta \, \partial \mathcal{L} / \partial \mathbf{W}$.
+\end{enumerate}
+The learning rate~$\eta$ controls the step size.  Modern optimizers (Adam,
+AdaFactor) adapt~$\eta$ per parameter.
+
+\subsection{Key architectural ideas}
+
+Before transformers, several ideas shaped the field:
+
+\begin{itemize}[nosep]
+\item \textbf{Convolutional neural networks (CNNs):} use local filters that
+  slide across the input.  Revolutionized image recognition.
+\item \textbf{Recurrent neural networks (RNNs):} process sequences one step
+  at a time, passing a hidden state forward.  Used for language before
+  transformers.
+\item \textbf{Long short-term memory (LSTM):} an RNN variant with gating
+  mechanisms that help information persist across long sequences.
+\end{itemize}
+
+RNNs and LSTMs have a critical limitation: they process tokens
+\emph{sequentially}, so they are slow to train on long sequences and
+struggle to relate distant tokens.  Transformers solved both problems.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{The transformer architecture}
+
+The transformer was introduced by Vaswani et al.\ (2017) in ``Attention Is
+All You Need.''  Its two key innovations are \textbf{self-attention} and
+\textbf{positional encoding}.
+
+\subsection{Tokenization}
+
+Before a transformer sees text, it is split into \textbf{tokens}---subword
+units from a fixed vocabulary (typically 32k--128k entries).  For example:
+
+\begin{center}\small
+\texttt{"Understanding transformers"} $\;\to\;$
+\texttt{["Under", "standing", " transform", "ers"]}
+\end{center}
+
+Each token is mapped to a learned \textbf{embedding vector} of dimension~$p$
+(commonly $p = 768$ to $p = 8192$).  This embedding is the input to the
+first layer.
+
+\subsection{Self-attention: the core mechanism}
+
+Self-attention lets every token look at every other token and decide how
+much to ``pay attention'' to it.  For each token~$t$, the model computes:
+\begin{itemize}[nosep]
+\item A \textbf{query}~$\mathbf{q}_t = \mathbf{W}_Q \mathbf{h}_t$:
+  ``What am I looking for?''
+\item A \textbf{key}~$\mathbf{k}_t = \mathbf{W}_K \mathbf{h}_t$:
+  ``What do I contain?''
+\item A \textbf{value}~$\mathbf{v}_t = \mathbf{W}_V \mathbf{h}_t$:
+  ``What information do I provide?''
+\end{itemize}
+
+The attention score between tokens~$i$ and~$j$ is the scaled dot product of
+query and key:
+\[
+  \text{score}(i, j) = \frac{\mathbf{q}_i^\top \mathbf{k}_j}{\sqrt{d_k}},
+\]
+where $d_k$ is the dimension of the keys.  These scores are passed through
+a softmax to produce attention weights~$\alpha_{ij}$, and the output for
+token~$i$ is the weighted sum of all values:
+\[
+  \text{Attention}(\mathbf{q}_i) = \sum_{j} \alpha_{ij} \, \mathbf{v}_j.
+\]
+
+\begin{analogy}
+Self-attention is like a meeting where every participant (token) can ask a
+question (query) and get answers weighted by relevance (key-query similarity)
+from every other participant.  The answers (values) are then combined.
+\end{analogy}
+
+\subsection{Multi-head attention}
+
+Instead of computing one set of $(\mathbf{Q}, \mathbf{K}, \mathbf{V})$,
+the transformer uses multiple \textbf{attention heads} (typically 12--128),
+each with its own learned projections.  Each head can attend to different
+aspects of the input.  The outputs are concatenated and projected:
+\[
+  \text{MultiHead} = \text{Concat}(\text{head}_1, \ldots, \text{head}_H)
+  \, \mathbf{W}_O.
+\]
+
+\subsection{Feed-forward networks}
+
+After attention, each token's representation passes through a
+\textbf{feed-forward network} (FFN)---two linear layers with a nonlinearity
+(typically GELU or SiLU):
+\[
+  \text{FFN}(\mathbf{h}) = \mathbf{W}_2 \, \sigma(\mathbf{W}_1 \mathbf{h}
+  + \mathbf{b}_1) + \mathbf{b}_2.
+\]
+The FFN processes each token \emph{independently}---attention handles
+cross-token communication, FFN handles per-token computation.
+
+\subsection{Residual connections and layer normalization}
+
+Each sub-layer (attention, FFN) is wrapped with:
+\begin{enumerate}[nosep]
+\item A \textbf{residual connection:} $\mathbf{h} \leftarrow \mathbf{h}
+  + \text{SubLayer}(\mathbf{h})$.  This lets gradients flow directly
+  through the network, enabling training of very deep models.
+\item \textbf{Layer normalization:} scales the hidden state to have zero
+  mean and unit variance.  Stabilizes training.
+\end{enumerate}
+
+\subsection{Positional encoding}
+
+Self-attention is permutation-invariant---it doesn't know the order of
+tokens.  \textbf{Positional encodings} inject position information.
+Modern models use \textbf{Rotary Position Embedding (RoPE)}, which encodes
+relative positions through rotation of query/key vectors.
+
+\subsection{Putting it all together: one transformer layer}
+
+A single transformer layer performs:
+\[
+  \mathbf{h}' = \text{LayerNorm}(\mathbf{h} + \text{MultiHead}(\mathbf{h})),
+\]
+\[
+  \mathbf{h}^{(l+1)} = \text{LayerNorm}(\mathbf{h}' + \text{FFN}(\mathbf{h}')).
+\]
+A transformer model stacks $L$ such layers (typically $L = 12$ to $L = 96$).
+
+\begin{keyidea}
+\textbf{This is exactly the layer--time grid} from Chapter~1.  The hidden
+state $H(l,t)$ at layer~$l$ and token~$t$ is the output of the $l$-th
+transformer layer for token~$t$.  The entire framework in this book operates
+on these hidden states.
+\end{keyidea}
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Types of transformer models}
+
+Transformers come in three main flavors:
+
+\begin{center}\small
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Type} & \textbf{Attention} & \textbf{Examples} \\
+\midrule
+Encoder-only & Bidirectional (sees all tokens) & BERT, RoBERTa \\
+Decoder-only & Causal (sees only past tokens) & GPT, LLaMA, Qwen \\
+Encoder-decoder & Both & T5, BART \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+This book focuses on \textbf{decoder-only} models (also called
+\textbf{causal language models}), because they are the architecture behind
+GPT, LLaMA, Qwen, DeepSeek, and essentially all modern large language models.
+
+% ╔════════════════════════════════════════════════════════════════════════════╗
+% ║  APPENDIX B: GPT and Large Language Models                               ║
+% ╚════════════════════════════════════════════════════════════════════════════╝
+
+\chapter{Introduction to GPT and Large Language Models}
+\label{app:gpt-llm}
+
+% (no companion notebook for this appendix)
+
+This appendix explains how decoder-only transformers are trained to generate
+text, how they scale into ``large language models'' (LLMs), and why
+understanding their internals matters.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{The GPT idea: next-token prediction}
+
+GPT (Generative Pre-trained Transformer) is based on a remarkably simple
+objective: \textbf{predict the next token}.
+
+Given a sequence of tokens $(x_1, x_2, \ldots, x_{t-1})$, the model
+computes a probability distribution over the vocabulary for the next token:
+\[
+  P(x_t \mid x_1, \ldots, x_{t-1}) =
+  \text{softmax}\!\bigl(\mathbf{W}_{\text{head}} \, \mathbf{h}^{(L)}_t\bigr),
+\]
+where $\mathbf{h}^{(L)}_t$ is the hidden state at the final layer~$L$ for
+token position~$t$, and $\mathbf{W}_{\text{head}}$ is the \textbf{language
+model head}---a linear projection from hidden dimension to vocabulary size.
+
+\begin{keyidea}
+Everything the model ``knows'' must be encoded in the hidden states
+$\mathbf{h}^{(l)}_t$.  By studying the geometry of these hidden states, we
+study how the model processes and stores information---which is exactly what
+this book does.
+\end{keyidea}
+
+The training loss is the \textbf{cross-entropy} between the predicted
+distribution and the actual next token:
+\[
+  \mathcal{L} = -\sum_{t=1}^{T} \log P(x_t \mid x_1, \ldots, x_{t-1}).
+\]
+
+\subsection{Causal masking}
+
+During training, the model processes the entire sequence at once but uses a
+\textbf{causal mask} to prevent each token from attending to future tokens.
+This means token~$t$ can only see tokens~$1, 2, \ldots, t$---exactly
+mimicking the left-to-right generation process.
+
+\subsection{Generation: autoregressive decoding}
+
+To generate text, the model works one token at a time:
+\begin{enumerate}[nosep]
+\item Feed the prompt through the model.
+\item Sample or select the most likely next token from $P(x_t \mid \ldots)$.
+\item Append that token to the sequence.
+\item Repeat from step~1 with the extended sequence.
+\end{enumerate}
+
+\begin{analogy}
+A GPT model is like an author who writes one word at a time, each time
+re-reading everything written so far to decide the next word.  The ``style''
+and ``knowledge'' of the author are encoded in the weights; the
+``thought process'' for each word is the forward pass through the layers.
+\end{analogy}
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Scaling: from GPT to large language models}
+
+The GPT approach scales remarkably well.  Increasing model size (parameters),
+dataset size, and compute produces predictably better models---a
+relationship described by \textbf{scaling laws} (Kaplan et al., 2020;
+Hoffmann et al., 2022).
+
+\begin{center}\small
+\begin{tabular}{@{}lrrrl@{}}
+\toprule
+\textbf{Model} & \textbf{Parameters} & \textbf{Layers} & \textbf{Hidden dim} & \textbf{Year} \\
+\midrule
+GPT-2       & 1.5B  & 48  & 1600  & 2019 \\
+GPT-3       & 175B  & 96  & 12288 & 2020 \\
+LLaMA-2 7B  & 7B    & 32  & 4096  & 2023 \\
+Qwen2.5-7B  & 7B    & 28  & 3584  & 2024 \\
+Qwen2.5-32B & 32B   & 64  & 5120  & 2024 \\
+LLaMA-3 70B & 70B   & 80  & 8192  & 2024 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{finding}
+In this book, we primarily analyze Qwen2.5-7B (28 layers, 3584 hidden
+dimensions) and validate results on DeepSeek-R1-Distill-Qwen-7B and
+Qwen2.5-32B.  The geometric framework applies to \emph{any} decoder-only
+transformer, regardless of size.
+\end{finding}
+
+\subsection{What makes LLMs ``large''?}
+
+Three things scale together:
+\begin{itemize}[nosep]
+\item \textbf{Parameters:} more layers, wider hidden states, more attention
+  heads.  A 7B-parameter model has $\sim$7 billion learned weights.
+\item \textbf{Training data:} modern LLMs train on trillions of tokens from
+  the internet, books, code, and curated datasets.
+\item \textbf{Compute:} training GPT-3 required $\sim$3.6 $\times 10^{23}$
+  floating-point operations.  Modern models require even more.
+\end{itemize}
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Key techniques in modern LLMs}
+
+\subsection{Pre-training and fine-tuning}
+
+LLM development typically has two stages:
+\begin{enumerate}[nosep]
+\item \textbf{Pre-training:} next-token prediction on a massive corpus.
+  This gives the model broad language understanding and world knowledge.
+\item \textbf{Fine-tuning:} additional training on curated data for
+  specific tasks.  This includes \textbf{instruction tuning} (teaching
+  the model to follow instructions) and \textbf{RLHF} (reinforcement
+  learning from human feedback, aligning the model with human preferences).
+\end{enumerate}
+
+\subsection{In-context learning}
+
+A remarkable property of LLMs is \textbf{in-context learning}: the ability
+to perform new tasks by conditioning on examples provided in the prompt,
+without updating any weights.
+
+\begin{lstlisting}[caption={In-context learning: the model learns the pattern from examples}]
+Translate English to French:
+  sea otter => loutre de mer
+  cheese => fromage
+  hello =>
+\end{lstlisting}
+
+The model produces ``bonjour'' without any French-specific training.  How?
+The geometric framework suggests that in-context learning modifies the
+dependency profile: the example tokens acquire high dependency, steering the
+model's computation.
+
+\subsection{The KV-cache and efficient inference}
+
+During generation, the model caches the key and value matrices from previous
+tokens (the \textbf{KV-cache}) so they don't need to be recomputed.  This
+makes each new token require only one forward pass through the layers,
+rather than reprocessing the entire sequence.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Why study model internals?}
+
+LLMs are powerful but opaque.  When a model hallucinates, refuses a valid
+request, or gives a subtly wrong answer, \textbf{we cannot tell why from the
+output alone}.  Understanding the internal computation is essential for:
+
+\begin{itemize}[nosep]
+\item \textbf{Debugging:} Why did the model ignore the context I provided?
+  (Chapter~\ref{chap:applications}, Section~1.)
+\item \textbf{Trust:} Is the model retrieving a fact or confabulating?
+  (Chapter~\ref{chap:applications}, Section~2.)
+\item \textbf{Steering:} Can I modify the model's behavior at specific layers
+  without retraining?  (Chapter~\ref{chap:reasoning}, Section~3.)
+\item \textbf{Efficiency:} Which layers can be pruned or quantized without
+  losing important computation?  (Chapter~\ref{chap:dependency}.)
+\item \textbf{Safety:} How do we ensure models behave as intended when
+  deployed in high-stakes settings?
+\end{itemize}
+
+\begin{keyidea}
+This book gives you concrete, geometric tools for all of these tasks.  The
+hidden states are not a black box---they have measurable structure, and that
+structure tells you what the model is doing.
+\end{keyidea}
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Connecting to the main text}
+
+The main chapters of this book analyze hidden states $H(l,t)$---the
+vectors produced at each layer and token position.  Here is how the pieces
+connect:
+
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Concept from this appendix} & \textbf{Where it appears in the book} \\
+\midrule
+Hidden states $\mathbf{h}^{(l)}_t$ & Chapter~1: the layer--time grid \\
+Self-attention (token mixing) & Chapter~5: curvature from path non-commutativity \\
+Feed-forward network (per-token) & Chapter~4: stretching in polar decomposition \\
+Residual connections & Chapter~3: high layer-kernel similarity \\
+Next-token prediction & Chapter~7: dependency via $\partial s / \partial H$ \\
+Causal masking & Chapters~8--9: why last token is special \\
+Scaling (layers, width) & Chapter~6: cross-model validation \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+You do not need to understand every detail of the transformer to use the
+geometric framework.  The key insight is simple: the hidden states exist,
+they change from layer to layer, and we can measure \emph{how} they change
+using the tools of linear algebra.
+
+
+% ══════════════════════════════════════════════════════════════════════════════
 \backmatter
 % ══════════════════════════════════════════════════════════════════════════════
 
@@ -2105,7 +2532,7 @@ Hidden state $H(l,t)$ &
 Layer--time grid &
   The 2D grid with layers on one axis and tokens on the other. \\
 Whitening &
-  PCA-based standardisation that makes dimensions uncorrelated
+  PCA-based standardization that makes dimensions uncorrelated
   and unit-variance. \\
 Layer kernel $K_{\text{layer}}$ &
   Similarity between two layers, averaged over tokens. \\
