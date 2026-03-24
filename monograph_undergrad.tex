@@ -3055,4 +3055,506 @@ Metric control &
 \end{itemize}
 
 
+% ╔════════════════════════════════════════════════════════════════════════════╗
+% ║  APPENDIX C: Linear Algebra for Layer-Time Geometry                      ║
+% ╚════════════════════════════════════════════════════════════════════════════╝
+
+\chapter{Linear Algebra for Layer--Time Geometry}
+\label{app:linear-algebra}
+
+% (no companion notebook for this appendix)
+
+This appendix collects the linear algebra tools that appear throughout the
+main text.  We assume you have seen vectors and matrices before; the goal
+here is to give precise definitions and build the intuition you need to
+follow the geometric framework.  Every concept below is used in at least one
+chapter---cross-references point you to where each idea shows up.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Vectors, norms, and inner products}
+
+A \textbf{vector} $\mathbf{h} \in \mathbb{R}^p$ is an ordered list of $p$
+real numbers.  In this book, every hidden state at position $(l, t)$ on the
+layer-time grid is such a vector (Chapter~\ref{chap:opening}).
+
+\begin{keyidea}
+Think of each hidden state as a point in $p$-dimensional space.  Geometric
+tools---distance, angle, projection---become tools for understanding what
+the model is doing at each step.
+\end{keyidea}
+
+\paragraph{Euclidean norm.}
+The \textbf{length} (or $\ell_2$ norm) of a vector is
+\[
+  \|\mathbf{h}\| \;=\; \sqrt{h_1^2 + h_2^2 + \cdots + h_p^2}
+  \;=\; \sqrt{\mathbf{h}^\top \mathbf{h}}.
+\]
+We use norms throughout to measure how ``far'' hidden states are from each
+other or from the origin.
+
+\paragraph{Inner product.}
+The \textbf{dot product} (or inner product) of two vectors is
+\[
+  \mathbf{a}^\top \mathbf{b} \;=\; \sum_{i=1}^{p} a_i \, b_i.
+\]
+The dot product encodes both magnitude and alignment:
+$\mathbf{a}^\top \mathbf{b} = \|\mathbf{a}\|\,\|\mathbf{b}\|\cos\theta$,
+where $\theta$ is the angle between the two vectors.  When
+$\mathbf{a}^\top\mathbf{b} = 0$ the vectors are \textbf{orthogonal}
+(perpendicular).
+
+\paragraph{Cosine similarity.}
+Normalizing the dot product gives a scale-invariant similarity measure:
+\[
+  \cos\theta \;=\;
+  \frac{\mathbf{a}^\top \mathbf{b}}{\|\mathbf{a}\|\,\|\mathbf{b}\|}.
+\]
+The layer kernel in Chapter~\ref{chap:kernels} averages cosine similarities
+across token positions to compare entire layers.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Matrices and linear transformations}
+
+A \textbf{matrix} $A \in \mathbb{R}^{m \times n}$ is a rectangular array of
+numbers.  Multiplying a matrix by a vector, $\mathbf{y} = A\mathbf{x}$,
+defines a \textbf{linear transformation}: it maps every input vector
+$\mathbf{x} \in \mathbb{R}^n$ to an output $\mathbf{y} \in \mathbb{R}^m$,
+and it preserves addition and scaling.
+
+In this book, the central matrix is the \textbf{layer transition operator}
+$T^{(l)}$ (Chapter~\ref{chap:polar}), the best linear map from hidden
+states at layer $l$ to hidden states at layer $l+1$:
+\[
+  \mathbf{h}^{(l+1)} \;\approx\; T^{(l)}\,\mathbf{h}^{(l)}.
+\]
+
+\paragraph{Transpose.}
+The \textbf{transpose} $A^\top$ flips rows and columns:
+$(A^\top)_{ij} = A_{ji}$.  For vectors, $\mathbf{h}^\top$ turns a column
+vector into a row vector, making the dot product
+$\mathbf{a}^\top\mathbf{b}$ a $1\times 1$ matrix multiplication.
+
+\paragraph{Matrix inverse.}
+If $A$ is square and non-singular, its \textbf{inverse} $A^{-1}$ satisfies
+$A^{-1}A = AA^{-1} = I$ (the identity matrix).  The transition operator is
+computed via least squares, which uses the \textbf{pseudoinverse} when an
+exact inverse does not exist (Chapter~\ref{chap:polar}).
+
+\paragraph{Trace and determinant.}
+The \textbf{trace} $\operatorname{tr}(A) = \sum_i A_{ii}$ is the sum of
+diagonal entries.  The \textbf{determinant} $\det(A)$ measures the volume
+scaling factor of the transformation.  For the stretch matrix $P$:
+\[
+  \operatorname{tr}(P) = \sum_i \sigma_i, \qquad
+  \det(P) = \prod_i \sigma_i,
+\]
+where $\sigma_i$ are the eigenvalues.  A near-zero determinant signals
+near-singularity---the layer is collapsing some directions.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Special matrix types}
+\label{sec:special-matrices}
+
+Several matrix types play starring roles in the geometric framework.
+
+\paragraph{Symmetric matrices.}
+A matrix $A$ is \textbf{symmetric} if $A = A^\top$.  Symmetric matrices
+have real eigenvalues and orthogonal eigenvectors (the \emph{spectral
+theorem}).  The covariance matrix $\Sigma$ and the stretch factor $P$ are
+both symmetric.
+
+\paragraph{Positive definite and positive semidefinite.}
+A symmetric matrix $A$ is \textbf{positive definite} (PD) if
+$\mathbf{x}^\top A\, \mathbf{x} > 0$ for every non-zero $\mathbf{x}$.
+It is \textbf{positive semidefinite} (PSD) if $\geq 0$ replaces $> 0$.
+\begin{itemize}[nosep]
+  \item PD means all eigenvalues are strictly positive---every direction is
+    stretched, never collapsed to zero.
+  \item The covariance matrix $\Sigma$ is always PSD.
+  \item The stretch factor $P$ in the polar decomposition is PSD by
+    construction (Chapter~\ref{chap:polar}).
+\end{itemize}
+
+\paragraph{Orthogonal matrices.}
+A square matrix $U$ is \textbf{orthogonal} if $U^\top U = I$.
+Equivalently, its columns form an orthonormal basis.  Orthogonal matrices
+preserve lengths and angles:
+\[
+  \|U\mathbf{x}\| = \|\mathbf{x}\| \quad \text{for all } \mathbf{x}.
+\]
+Geometrically, orthogonal transformations are \emph{rotations} (if
+$\det U = +1$) or \emph{reflections} (if $\det U = -1$).  In the polar
+decomposition $T = UP$, the factor $U$ is orthogonal: it redirects
+information without changing magnitudes (Chapter~\ref{chap:polar}).
+
+\paragraph{The identity matrix.}
+The $k \times k$ identity matrix $I$ has ones on the diagonal and zeros
+elsewhere.  When $P = I$, the layer performs no stretching; when
+$\|P - I\|_F$ is large, the layer's stretching deviates significantly from
+``do nothing'' (Chapter~\ref{chap:curvature}).
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Eigenvalues and eigenvectors}
+\label{sec:eigen}
+
+An \textbf{eigenvector} of a square matrix $A$ is a non-zero vector
+$\mathbf{v}$ that is only scaled (not rotated) by $A$:
+\[
+  A\mathbf{v} = \lambda\,\mathbf{v},
+\]
+where the scalar $\lambda$ is the corresponding \textbf{eigenvalue}.
+
+\begin{analogy}
+Imagine pushing a door.  Most pushes change both the door's direction and
+speed.  An eigenvector is the special direction where the door only speeds
+up or slows down---it does not turn.  The eigenvalue tells you the
+speed-up factor.
+\end{analogy}
+
+\paragraph{Spectral theorem (for symmetric matrices).}
+If $A$ is $k\times k$ and symmetric, it has $k$ real eigenvalues
+$\lambda_1 \geq \lambda_2 \geq \cdots \geq \lambda_k$ with corresponding
+orthonormal eigenvectors $\mathbf{v}_1,\ldots,\mathbf{v}_k$.  We can write:
+\[
+  A = V \Lambda V^\top, \qquad
+  V = [\mathbf{v}_1 \mid \cdots \mid \mathbf{v}_k], \qquad
+  \Lambda = \operatorname{diag}(\lambda_1,\ldots,\lambda_k).
+\]
+This is the \textbf{eigendecomposition} (or spectral decomposition).
+
+\paragraph{Why it matters for this book.}
+\begin{itemize}[nosep]
+  \item The eigenvectors of the covariance matrix $\Sigma$ are the
+    principal components used in whitening (Chapter~\ref{chap:whitening}).
+  \item The eigenvalues of the stretch factor $P^{(l)}$ reveal which
+    directions each layer amplifies or compresses
+    (Chapter~\ref{chap:polar}).
+  \item The eigenvalue distribution of $P$ determines the effective rank
+    and condition number---our key selectivity metrics
+    (Chapter~\ref{chap:polar}).
+\end{itemize}
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Singular value decomposition (SVD)}
+\label{sec:svd}
+
+The eigendecomposition requires a square symmetric matrix.  The
+\textbf{singular value decomposition} generalizes to \emph{any}
+$m\times n$ matrix:
+\[
+  A = U_{\mathrm{svd}} \,\Sigma_{\mathrm{svd}}\, V_{\mathrm{svd}}^\top,
+\]
+where:
+\begin{itemize}[nosep]
+  \item $U_{\mathrm{svd}} \in \mathbb{R}^{m \times m}$ is orthogonal
+    (left singular vectors),
+  \item $\Sigma_{\mathrm{svd}} \in \mathbb{R}^{m \times n}$ is diagonal
+    with non-negative \textbf{singular values}
+    $\sigma_1 \geq \sigma_2 \geq \cdots \geq 0$,
+  \item $V_{\mathrm{svd}} \in \mathbb{R}^{n \times n}$ is orthogonal
+    (right singular vectors).
+\end{itemize}
+
+\begin{keyidea}
+Every linear transformation can be decomposed into three steps: (1) rotate
+the input ($V_{\mathrm{svd}}^\top$), (2) stretch along coordinate axes
+($\Sigma_{\mathrm{svd}}$), (3) rotate the output ($U_{\mathrm{svd}}$).
+The singular values tell you how much stretching happens in each direction.
+\end{keyidea}
+
+\paragraph{Connection to eigenvalues.}
+For a symmetric PSD matrix $A$, the singular values equal the eigenvalues.
+For a general matrix, the singular values of $A$ are the square roots of
+the eigenvalues of $A^\top A$.
+
+\paragraph{Use in this book.}
+SVD is the computational engine behind two core operations:
+\begin{enumerate}[nosep]
+  \item \textbf{PCA/whitening} (Chapter~\ref{chap:whitening}): we compute
+    the SVD of the centered hidden-state matrix to extract the top-$k$
+    principal components.
+  \item \textbf{Polar decomposition} (Chapter~\ref{chap:polar}): we factor
+    the transition operator $T = UP$ by computing $T = U_{\mathrm{svd}}
+    \Sigma_{\mathrm{svd}} V_{\mathrm{svd}}^\top$ and setting
+    $U = U_{\mathrm{svd}} V_{\mathrm{svd}}^\top$ and
+    $P = V_{\mathrm{svd}}\, \Sigma_{\mathrm{svd}}\, V_{\mathrm{svd}}^\top$.
+\end{enumerate}
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Covariance and PCA}
+\label{sec:covariance-pca}
+
+Given $N$ data points $\mathbf{x}_1,\ldots,\mathbf{x}_N \in \mathbb{R}^p$
+with mean $\bar{\mathbf{x}}$, the \textbf{covariance matrix} is
+\[
+  \Sigma = \frac{1}{N-1}\sum_{i=1}^{N}
+  (\mathbf{x}_i - \bar{\mathbf{x}})
+  (\mathbf{x}_i - \bar{\mathbf{x}})^\top
+  \;\in\; \mathbb{R}^{p \times p}.
+\]
+Entry $\Sigma_{jk}$ measures how much dimensions $j$ and $k$ co-vary.
+
+\paragraph{Principal Component Analysis (PCA).}
+PCA finds the directions of maximum variance:
+\begin{enumerate}[nosep]
+  \item Center the data: $\tilde{\mathbf{x}}_i = \mathbf{x}_i -
+    \bar{\mathbf{x}}$.
+  \item Compute $\Sigma$ (or use SVD of the centered data matrix).
+  \item Take the top-$k$ eigenvectors $V_k = [\mathbf{v}_1,\ldots,
+    \mathbf{v}_k]$ of $\Sigma$.
+  \item Project: $\mathbf{z}_i = V_k^\top \tilde{\mathbf{x}}_i \in
+    \mathbb{R}^k$.
+\end{enumerate}
+This reduces the dimension from $p$ to $k$ while preserving as much
+variance as possible.
+
+\paragraph{Whitening.}
+PCA projection followed by rescaling each component to unit variance:
+\[
+  W = V_k \operatorname{diag}(\lambda_1^{-1/2},\ldots,\lambda_k^{-1/2}),
+  \qquad \mathbf{z}_i = W^\top (\mathbf{x}_i - \bar{\mathbf{x}}).
+\]
+After whitening, the covariance of the $\mathbf{z}_i$ is $I_k$---all
+directions have unit variance and zero correlation.  This is the essential
+preprocessing step that makes geometric comparisons valid across layers
+(Chapter~\ref{chap:whitening}).
+
+\begin{pitfall}
+Without whitening, distances and angles in the raw hidden-state space are
+dominated by a few high-variance directions.  Two vectors might look
+similar only because they share a large component along the top principal
+axis, even though they differ in every other direction.  Whitening removes
+this bias.
+\end{pitfall}
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Polar decomposition}
+\label{sec:polar}
+
+Every invertible matrix $T$ can be uniquely factored as
+\[
+  T = U P,
+\]
+where $U$ is orthogonal and $P$ is symmetric positive definite.  This is
+the matrix analog of writing a complex number in polar form
+$z = e^{i\theta} \cdot r$ (Chapter~\ref{chap:polar}).
+
+\begin{analogy}
+Imagine a block of clay.  Applying $T$ to the clay is equivalent to first
+\emph{stretching} it ($P$) and then \emph{rotating} it ($U$).
+Separating these two actions lets you ask: ``how much did the model
+reshape information?'' ($P$) versus ``which direction did the model point
+it?'' ($U$).
+\end{analogy}
+
+\paragraph{Computing it via SVD.}
+Given $T = U_{\mathrm{svd}}\,\Sigma_{\mathrm{svd}}\,V_{\mathrm{svd}}^\top$:
+\[
+  U = U_{\mathrm{svd}}\, V_{\mathrm{svd}}^\top, \qquad
+  P = V_{\mathrm{svd}}\, \Sigma_{\mathrm{svd}}\, V_{\mathrm{svd}}^\top.
+\]
+The eigenvalues of $P$ are the singular values of $T$.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Condition number and effective rank}
+\label{sec:condition-rank}
+
+Two scalar summaries of the eigenvalue spectrum of $P$ appear throughout
+the book.
+
+\paragraph{Condition number.}
+\[
+  \kappa = \frac{\sigma_1}{\sigma_k},
+\]
+where $\sigma_1$ and $\sigma_k$ are the largest and smallest eigenvalues
+of $P$.  A large $\kappa$ means the layer amplifies some directions far
+more than others---it is making a \emph{selective} transformation.  A
+$\kappa$ near 1 means all directions are treated roughly equally
+(Chapter~\ref{chap:polar}).
+
+\paragraph{Effective rank.}
+Let $\hat\sigma_i = \sigma_i / \sum_j \sigma_j$ be the normalized
+eigenvalue distribution.  The \textbf{effective rank} is:
+\[
+  \mathrm{erank} = \exp\!\Bigl(-\sum_{i=1}^{k} \hat\sigma_i
+  \log \hat\sigma_i\Bigr) = \exp(H(\hat\sigma)),
+\]
+where $H$ is the Shannon entropy.  This measures how many directions are
+\emph{actively} used:
+\begin{itemize}[nosep]
+  \item If all $\sigma_i$ are equal, $\mathrm{erank} = k$ (full rank).
+  \item If one $\sigma_i$ dominates, $\mathrm{erank} \approx 1$ (all
+    computation in a single direction).
+\end{itemize}
+Low effective rank means the layer concentrates its computation in a
+low-dimensional subspace---a fingerprint of focused, selective processing
+(Chapters \ref{chap:polar} and~\ref{chap:experiments}).
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Norms for matrices}
+
+We use two matrix norms in this book.
+
+\paragraph{Frobenius norm.}
+\[
+  \|A\|_F = \sqrt{\sum_{i,j} A_{ij}^2}
+  = \sqrt{\operatorname{tr}(A^\top A)}
+  = \sqrt{\sum_i \sigma_i^2},
+\]
+where $\sigma_i$ are the singular values.  Think of it as the Euclidean
+norm applied to the matrix treated as one long vector.  The curvature
+measure in Chapter~\ref{chap:curvature} uses $\|\Omega^{(l,t)} - I\|_F$
+to quantify how much the commutator deviates from the identity.
+
+\paragraph{Spectral norm (operator norm).}
+\[
+  \|A\|_2 = \sigma_1 = \max_{\|\mathbf{x}\|=1} \|A\mathbf{x}\|.
+\]
+This is the largest singular value---the maximum stretching the matrix can
+apply.  The condition number is $\kappa = \|A\|_2 \cdot \|A^{-1}\|_2$.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Gram matrices and kernels}
+
+A \textbf{Gram matrix} stores all pairwise inner products of a set of
+vectors.  Given $n$ vectors $\mathbf{x}_1,\ldots,\mathbf{x}_n$:
+\[
+  G_{ij} = \mathbf{x}_i^\top \mathbf{x}_j.
+\]
+
+In Chapter~\ref{chap:kernels}, we build two Gram matrices:
+\begin{itemize}[nosep]
+  \item \textbf{Layer kernel} $K^{\mathrm{layer}}(i,j)$: average cosine
+    similarity between token vectors at layers $i$ and $j$.  It answers:
+    ``how similar are the representations at these two layers?''
+  \item \textbf{Temporal kernel} $K^{\mathrm{token}}(s,t)$: average cosine
+    similarity between tokens $s$ and $t$ across all layers.  It answers:
+    ``how similarly does the model process these two tokens?''
+\end{itemize}
+Block-diagonal structure in the layer kernel reveals the three computational
+phases (embedding, processing, prediction) described in
+Chapter~\ref{chap:kernels}.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Gradients and the Jacobian}
+
+\paragraph{Gradient.}
+For a scalar-valued function $f(\mathbf{x})$, the \textbf{gradient}
+$\nabla_{\mathbf{x}} f \in \mathbb{R}^p$ points in the direction of
+steepest increase and has magnitude equal to the rate of change in that
+direction:
+\[
+  \nabla_{\mathbf{x}} f =
+  \begin{bmatrix}
+    \partial f / \partial x_1 \\ \vdots \\ \partial f / \partial x_p
+  \end{bmatrix}.
+\]
+
+\paragraph{Jacobian.}
+For a vector-valued function $\mathbf{f}: \mathbb{R}^n \to \mathbb{R}^m$,
+the \textbf{Jacobian} $J \in \mathbb{R}^{m \times n}$ collects all partial
+derivatives: $J_{ij} = \partial f_i / \partial x_j$.
+
+\paragraph{Use in this book.}
+The dependency measure in Chapter~\ref{chap:dependency} computes
+\[
+  D_l = \left\|\frac{\partial s}{\partial H^{(l)}}\right\|_F,
+\]
+where $s$ is a scalar output (e.g., the logit of the predicted token) and
+$H^{(l)}$ is the hidden-state matrix at layer $l$.  This is the Frobenius
+norm of a Jacobian: it measures how much the output would change if the
+hidden states at layer $l$ were perturbed.  Large $D_l$ means layer $l$
+has high influence on the prediction.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Least squares}
+
+Given an overdetermined system $A\mathbf{x} \approx \mathbf{b}$ (more
+equations than unknowns), the \textbf{least-squares solution} minimizes the
+residual:
+\[
+  \hat{\mathbf{x}} = \arg\min_{\mathbf{x}} \|A\mathbf{x} - \mathbf{b}\|^2.
+\]
+When $A$ has full column rank, the closed-form solution is:
+\[
+  \hat{\mathbf{x}} = (A^\top A)^{-1} A^\top \mathbf{b}.
+\]
+The matrix $(A^\top A)^{-1} A^\top$ is the \textbf{pseudoinverse} of $A$.
+
+\paragraph{Use in this book.}
+The transition operator is the least-squares fit
+$T^{(l)} = \arg\min_T \|H^{(l)}T - H^{(l+1)}\|_F^2$---the best linear
+map from one layer's hidden states to the next
+(Chapter~\ref{chap:polar}).  In code this is computed by
+\texttt{torch.linalg.lstsq}.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Mahalanobis distance}
+\label{sec:mahalanobis}
+
+The \textbf{Mahalanobis distance} between a point $\mathbf{x}$ and a
+distribution with mean $\boldsymbol{\mu}$ and covariance $\Sigma$ is
+\[
+  d_M(\mathbf{x}, \boldsymbol{\mu}) =
+  \sqrt{(\mathbf{x} - \boldsymbol{\mu})^\top \Sigma^{-1}
+  (\mathbf{x} - \boldsymbol{\mu})}.
+\]
+It accounts for correlations between dimensions: two points that are close
+in Euclidean distance may be far apart in Mahalanobis distance if they
+differ along a low-variance direction.
+
+\begin{keyidea}
+After PCA whitening, the covariance becomes $I$, so the Mahalanobis
+distance \emph{equals} the ordinary Euclidean distance.  This is exactly
+why whitening is so powerful: it turns the complicated, correlation-aware
+Mahalanobis distance into plain Euclidean distance, which is much easier
+to compute and interpret (Chapter~\ref{chap:whitening}).
+\end{keyidea}
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Summary: where each tool is used}
+
+Table~\ref{tab:la-roadmap} maps each linear algebra concept to the
+chapter(s) where it plays a central role.
+
+\begin{table}[H]
+\centering
+\caption{Linear algebra concepts and their roles in this book.}
+\label{tab:la-roadmap}
+\small
+\begin{tabularx}{\textwidth}{@{}l l X@{}}
+\toprule
+\textbf{Concept} & \textbf{Chapter(s)} & \textbf{Role} \\
+\midrule
+Vectors, norms, inner products & 1, 3
+  & Hidden states as geometric objects; kernel similarities \\
+Covariance, PCA, whitening & 2
+  & Standardize hidden states so geometry is meaningful \\
+SVD & 2, 4
+  & Computational engine for PCA and polar decomposition \\
+Eigenvalues, eigenvectors & 2, 4, 6
+  & Principal directions (PCA); stretch spectrum ($P$); DOE metrics \\
+Polar decomposition ($T = UP$) & 4, 8, 9
+  & Separate rotation from stretching; metric vs.\ rotation control \\
+Orthogonal matrices & 4, 8
+  & Rotation factor $U$; rotation control in steering \\
+Condition number, effective rank & 4, 6, 9
+  & Selectivity metrics; DOE analysis; failure diagnosis \\
+Frobenius norm & 5, 7
+  & Curvature measure; dependency magnitude \\
+Gram matrices, kernels & 3
+  & Layer similarity; three-phase structure \\
+Gradient, Jacobian & 7
+  & Dependency: output sensitivity to each layer \\
+Least squares, pseudoinverse & 4
+  & Fitting the transition operator $T^{(l)}$ \\
+Mahalanobis distance & 2
+  & Motivation for whitening \\
+Positive definite matrices & 2, 4
+  & Covariance $\Sigma$; stretch factor $P$ \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+
 \end{document}
