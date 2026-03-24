@@ -422,10 +422,12 @@ This book develops four main ideas, each building on the last:
   properties actually affect the geometry: task type? reasoning
   difficulty? prompt length?
 
-\item \textbf{Connect geometry to reasoning} (Chapter~\ref{chap:reasoning}).
+\item \textbf{Connect geometry and dependency to reasoning-like computation}
+  (Chapter~\ref{chap:reasoning}).
   We add a new observable---\emph{dependency}---that measures how much
   each layer's hidden state matters for the model's final output.
-  This lets us define reasoning, memory, and control in geometric terms.
+  Combining geometry with dependency lets us give practical operational
+  definitions of reasoning, memory, and control.
 \end{enumerate}
 
 \begin{center}
@@ -462,7 +464,7 @@ By the end of this book, you will be able to:
 \item Compute dependency profiles that show which layers matter most
   for the model's output.
 \item Diagnose specific failure modes (hallucination, instruction-ignoring,
-  reasoning errors) using geometric signatures.
+  reasoning-related failures) using geometric and dependency signatures.
 \end{itemize}
 
 \section{Hands-on: your first analysis in 60 seconds}
@@ -1524,10 +1526,11 @@ but dependency is low?
 
 \begin{whycare}
 This chapter connects everything. The geometry and dependency tools from
-earlier chapters combine to give precise definitions of what it means for
-a transformer to ``reason,'' ``remember,'' and be ``controlled.'' These are
-not just philosophical labels---they have measurable signatures that you
-can compute and test.
+earlier chapters combine to give \emph{practical operational definitions}
+of what it means for a transformer to ``reason,'' ``remember,'' and be
+``controlled.'' These are not claims that geometry alone explains
+reasoning---they are measurable conditions that, when satisfied together,
+indicate reasoning-like computation that you can detect and test.
 \end{whycare}
 
 \section{Defining reasoning geometrically}
