@@ -2984,7 +2984,7 @@ chapter---cross-references point you to where each idea shows up.
 
 A \textbf{vector} $\mathbf{h} \in \mathbb{R}^p$ is an ordered list of $p$
 real numbers.  In this book, every hidden state at position $(l, t)$ on the
-layer-time grid is such a vector (Chapter~\ref{chap:opening}).
+layer-time grid is such a vector (Chapter~\ref{chap:intro}).
 
 \begin{keyidea}
 Think of each hidden state as a point in $p$-dimensional space.  Geometric
@@ -3031,7 +3031,7 @@ $\mathbf{x} \in \mathbb{R}^n$ to an output $\mathbf{y} \in \mathbb{R}^m$,
 and it preserves addition and scaling.
 
 In this book, the central matrix is the \textbf{layer transition operator}
-$T^{(l)}$ (Chapter~\ref{chap:polar}), the best linear map from hidden
+$T^{(l)}$ (Chapter~\ref{chap:operators}), the best linear map from hidden
 states at layer $l$ to hidden states at layer $l+1$:
 \[
   \mathbf{h}^{(l+1)} \;\approx\; T^{(l)}\,\mathbf{h}^{(l)}.
@@ -3047,7 +3047,7 @@ $\mathbf{a}^\top\mathbf{b}$ a $1\times 1$ matrix multiplication.
 If $A$ is square and non-singular, its \textbf{inverse} $A^{-1}$ satisfies
 $A^{-1}A = AA^{-1} = I$ (the identity matrix).  The transition operator is
 computed via least squares, which uses the \textbf{pseudoinverse} when an
-exact inverse does not exist (Chapter~\ref{chap:polar}).
+exact inverse does not exist (Chapter~\ref{chap:operators}).
 
 \paragraph{Trace and determinant.}
 The \textbf{trace} $\operatorname{tr}(A) = \sum_i A_{ii}$ is the sum of
@@ -3081,7 +3081,7 @@ It is \textbf{positive semidefinite} (PSD) if $\geq 0$ replaces $> 0$.
     stretched, never collapsed to zero.
   \item The covariance matrix $\Sigma$ is always PSD.
   \item The stretch factor $P$ in the polar decomposition is PSD by
-    construction (Chapter~\ref{chap:polar}).
+    construction (Chapter~\ref{chap:operators}).
 \end{itemize}
 
 \paragraph{Orthogonal matrices.}
@@ -3094,7 +3094,7 @@ preserve lengths and angles:
 Geometrically, orthogonal transformations are \emph{rotations} (if
 $\det U = +1$) or \emph{reflections} (if $\det U = -1$).  In the polar
 decomposition $T = UP$, the factor $U$ is orthogonal: it redirects
-information without changing magnitudes (Chapter~\ref{chap:polar}).
+information without changing magnitudes (Chapter~\ref{chap:operators}).
 
 \paragraph{The identity matrix.}
 The $k \times k$ identity matrix $I$ has ones on the diagonal and zeros
@@ -3137,10 +3137,10 @@ This is the \textbf{eigendecomposition} (or spectral decomposition).
     principal components used in whitening (Chapter~\ref{chap:whitening}).
   \item The eigenvalues of the stretch factor $P^{(l)}$ reveal which
     directions each layer amplifies or compresses
-    (Chapter~\ref{chap:polar}).
+    (Chapter~\ref{chap:operators}).
   \item The eigenvalue distribution of $P$ determines the effective rank
     and condition number---our key selectivity metrics
-    (Chapter~\ref{chap:polar}).
+    (Chapter~\ref{chap:operators}).
 \end{itemize}
 
 % ──────────────────────────────────────────────────────────────────────────────
@@ -3182,7 +3182,7 @@ SVD is the computational engine behind two core operations:
   \item \textbf{PCA/whitening} (Chapter~\ref{chap:whitening}): we compute
     the SVD of the centered hidden-state matrix to extract the top-$k$
     principal components.
-  \item \textbf{Polar decomposition} (Chapter~\ref{chap:polar}): we factor
+  \item \textbf{Polar decomposition} (Chapter~\ref{chap:operators}): we factor
     the transition operator $T = UP$ by computing $T = U_{\mathrm{svd}}
     \Sigma_{\mathrm{svd}} V_{\mathrm{svd}}^\top$ and setting
     $U = U_{\mathrm{svd}} V_{\mathrm{svd}}^\top$ and
@@ -3246,7 +3246,7 @@ Every invertible matrix $T$ can be uniquely factored as
 \]
 where $U$ is orthogonal and $P$ is symmetric positive definite.  This is
 the matrix analog of writing a complex number in polar form
-$z = e^{i\theta} \cdot r$ (Chapter~\ref{chap:polar}).
+$z = e^{i\theta} \cdot r$ (Chapter~\ref{chap:operators}).
 
 \begin{analogy}
 Imagine a block of clay.  Applying $T$ to the clay is equivalent to first
@@ -3279,7 +3279,7 @@ where $\sigma_1$ and $\sigma_k$ are the largest and smallest eigenvalues
 of $P$.  A large $\kappa$ means the layer amplifies some directions far
 more than others---it is making a \emph{selective} transformation.  A
 $\kappa$ near 1 means all directions are treated roughly equally
-(Chapter~\ref{chap:polar}).
+(Chapter~\ref{chap:operators}).
 
 \paragraph{Effective rank.}
 Let $\hat\sigma_i = \sigma_i / \sum_j \sigma_j$ be the normalized
@@ -3297,7 +3297,7 @@ where $H$ is the Shannon entropy.  This measures how many directions are
 \end{itemize}
 Low effective rank means the layer concentrates its computation in a
 low-dimensional subspace---a fingerprint of focused, selective processing
-(Chapters \ref{chap:polar} and~\ref{chap:experiments}).
+(Chapters \ref{chap:operators} and~\ref{chap:experiments}).
 
 % ──────────────────────────────────────────────────────────────────────────────
 \section{Norms for matrices}
@@ -3394,7 +3394,7 @@ The matrix $(A^\top A)^{-1} A^\top$ is the \textbf{pseudoinverse} of $A$.
 The transition operator is the least-squares fit
 $T^{(l)} = \arg\min_T \|H^{(l)}T - H^{(l+1)}\|_F^2$---the best linear
 map from one layer's hidden states to the next
-(Chapter~\ref{chap:polar}).  In code this is computed by
+(Chapter~\ref{chap:operators}).  In code this is computed by
 \texttt{torch.linalg.lstsq}.
 
 % ──────────────────────────────────────────────────────────────────────────────
