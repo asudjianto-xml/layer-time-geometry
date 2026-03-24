@@ -342,7 +342,7 @@ pip install layer-time[tutorials]
 \texttt{ch5\_curvature.ipynb}                  & Ch.~5: Where the Action Is: Curvature \\
 \texttt{ch6\_experiments.ipynb}                & Ch.~6: Testing What Matters: DOE \\
 \texttt{ch7\_dependency.ipynb}                 & Ch.~7: What Each Layer Contributes \\
-\texttt{ch8\_reasoning\_memory\_control.ipynb} & Ch.~8: Reasoning, Memory, and Control \\
+\texttt{ch8\_reasoning\_memory\_control.ipynb} & Ch.~8: Reasoning-Like Computation, Memory, and Control \\
 \texttt{ch9\_diagnosing\_failures.ipynb}       & Ch.~9: Practical Applications \\
 \bottomrule
 \end{tabular}
@@ -715,19 +715,17 @@ approximately $I_k$.
 For each, compute the curvature profile and check whether the shape changes.
 At what $k$ does the profile stabilise?
 \begin{lstlisting}
-# Hint: use the internal research module for custom k
-# (layer_time_geometry is the computational backend, not the public API)
-import layer_time_geometry as core
+# Hint: use the research API for custom whitening dimension
+from layer_time import LayerTimeAnalyzer
+
+analyzer = LayerTimeAnalyzer(model_name="Qwen/Qwen2.5-7B", device="cuda")
 
 for k in [32, 64, 128, 256]:
-    H_raw = core.extract_hidden_states(model.hf_model, model.tokenizer,
-                                        "The capital of France is", "cuda")
-    H_np = H_raw[1:].cpu().numpy()
-    metric = core.estimate_metric(H_np, n_components=k)
-    H_w = core.whiten(H_np, metric)
-    Omega = core.curvature(H_w)
-    print(f"k={k:3d}: mean_curv={Omega.mean():.4f}, "
-          f"peak_layer={Omega.mean(axis=1).argmax()}")
+    result = analyzer.analyse("The capital of France is",
+                              whiten_components=k)
+    curv = result.curvature_by_layer
+    print(f"k={k:3d}: mean_curv={curv.mean():.4f}, "
+          f"peak_layer={curv.argmax()}")
 \end{lstlisting}
 \end{tryit}
 
@@ -1654,8 +1652,11 @@ dependency in the final layers, the model is ``remembering'' it functionally.
 
 Control means changing the model's internal computation in a way that
 changes the dependency profile and, ultimately, the output. In principle,
-control can act through both rotation and stretching. The polar
-decomposition gives us two levers:
+control can act through both rotation and stretching. In practice, our
+experiments show that the dominant effective lever is the \textbf{metric
+side}: modifying the eigenvalues of $P^{(l)}$ has much larger effects than
+rotation-only interventions (Section~\ref{sec:metric-dominates} below).
+The polar decomposition gives us two levers:
 
 \begin{itemize}[nosep]
 \item \textbf{Metric control}: clamping or modifying the eigenvalues
@@ -1665,6 +1666,7 @@ decomposition gives us two levers:
 \end{itemize}
 
 \subsection{The surprise: metric control dominates}
+\label{sec:metric-dominates}
 
 The research monograph originally predicted that combining rotation and
 metric control (``dual control'') would work best, with rotation providing
