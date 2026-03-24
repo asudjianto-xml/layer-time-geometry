@@ -225,6 +225,17 @@ Circuit tracing & Activation patching, probing &
 Use layer--time geometry to find the interesting regions and regimes; use
 tracing to zoom in mechanistically.
 
+\subsection*{What this book is not claiming}
+
+This book does not claim to have solved reasoning in the broad human sense,
+and it does not try to reverse-engineer every transformer circuit. Its goal
+is narrower and more practical: to measure how computation is organized
+inside the model across layers and tokens. In this framework, geometry tells
+you where interaction happens and how information is transformed; dependency
+tells you which parts of that computation actually matter for the output.
+Together, they provide operational diagnostics for reasoning-like
+computation, memory use, and control.
+
 \subsection*{What you need}
 
 \begin{itemize}[nosep]
@@ -457,8 +468,8 @@ This book develops four main ideas, each building on the last:
 
 \item \textbf{Run controlled experiments} (Chapter~\ref{chap:experiments}).
   We use factorial experimental design (DOE) to test which input
-  properties actually affect the geometry: task type? reasoning
-  difficulty? prompt length?
+  properties actually affect the geometry: task type? prompt structure?
+  prompt length?
 
 \item \textbf{Connect geometry and dependency to reasoning-like computation}
   (Chapter~\ref{chap:reasoning}).
@@ -493,7 +504,7 @@ This book develops four main ideas, each building on the last:
 By the end of this book, you will be able to:
 
 \begin{itemize}[nosep]
-\item Extract and whitened hidden states from any Hugging Face transformer.
+\item Extract and whiten hidden states from any Hugging Face transformer.
 \item Compute the polar decomposition of layer transitions and interpret
   what rotation and stretching mean.
 \item Measure curvature and identify where in the network non-trivial
@@ -537,8 +548,13 @@ Run the code above. Then try two more prompts:
 \item A factual question: \texttt{"Who wrote Romeo and Juliet?"}
 \item A reasoning problem: \texttt{"If all cats are animals and Whiskers is a cat, what is Whiskers?"}
 \end{itemize}
-Compare the three summaries. Which has the highest curvature? Which has the
-lowest dependency entropy? Do the differences surprise you?
+Compare the three summaries. How do the prompts differ in \emph{where}
+curvature concentrates and \emph{how} dependency is distributed?
+\begin{itemize}[nosep]
+\item Does the factual prompt peak earlier or later than the reasoning prompt?
+\item Does the reasoning prompt show more distributed dependency across layers?
+\item Which differences look structural, and which might just reflect prompt form?
+\end{itemize}
 \end{tryit}
 
 
@@ -699,7 +715,8 @@ approximately $I_k$.
 For each, compute the curvature profile and check whether the shape changes.
 At what $k$ does the profile stabilise?
 \begin{lstlisting}
-# Hint: use the core library directly for custom k
+# Hint: use the internal research module for custom k
+# (layer_time_geometry is the computational backend, not the public API)
 import layer_time_geometry as core
 
 for k in [32, 64, 128, 256]:
@@ -1059,11 +1076,13 @@ model make sharper ``decisions'' for one task type?
 \notebook{ch5\_curvature.ipynb}
 
 \begin{whycare}
-Curvature tells you \emph{where} in the layer--time grid the interesting
-computation happens. Zero curvature means the model could be replaced by
-a simple linear transformation at that point. High curvature means something
-genuinely non-trivial is occurring. This is the single most useful
-diagnostic in the framework.
+Curvature tells you \emph{where} in the layer--time grid non-separable
+interaction happens. Zero curvature means the local computation is close to
+separable: moving across layers and tokens nearly commutes. High curvature
+means the model is doing genuinely non-trivial interaction at that point.
+Curvature is one of the most useful \emph{geometry} diagnostics in the
+framework---but it is not the whole story. Later chapters add dependency
+to distinguish interesting geometry from functionally important computation.
 \end{whycare}
 
 \section{The idea of curvature on a grid}
@@ -1145,8 +1164,9 @@ consistently shows the same pattern:
   where the model commits to its prediction.
 \end{itemize}
 
-This is the most robust finding in the entire framework---it replicates
-across models, prompts, and tasks.
+This is the most robust \emph{geometry result} in the framework: across
+models, prompts, and tasks, curvature tends to concentrate in the final
+layers.
 \end{finding}
 
 \begin{pitfall}
@@ -1556,7 +1576,7 @@ but dependency is low?
 
 
 % ══════════════════════════════════════════════════════════════════════════════
-\chapter{Reasoning, Memory, and Control}
+\chapter{Reasoning-Like Computation, Memory, and Control}
 \label{chap:reasoning}
 % ══════════════════════════════════════════════════════════════════════════════
 
@@ -1571,30 +1591,51 @@ reasoning---they are measurable conditions that, when satisfied together,
 indicate reasoning-like computation that you can detect and test.
 \end{whycare}
 
-\section{Defining reasoning geometrically}
+\begin{pitfall}
+\textbf{What this chapter is and is not doing.}
+This chapter does not prove that transformers ``reason'' in the broad human
+sense. It gives an \emph{operational internal definition} within this
+framework. We call a computation \textbf{reasoning-like} when three things
+happen together: non-separable interaction, non-degenerate propagation, and
+distributed dependency across layers. This is a practical measurement
+definition, not a final philosophical theory of reasoning.
+\end{pitfall}
 
-We all have intuitions about what ``reasoning'' means, but we need a
-precise definition to measure it. Here is ours:
+\section{An operational view of reasoning-like computation}
+
+In this framework, we do not identify reasoning with one number such as
+curvature. Instead, we look for a pattern. A prompt shows
+\textbf{reasoning-like computation} when:
 
 \begin{keyidea}
-A transformer is \textbf{reasoning} at layer $l$ and token $t$ when three
-conditions hold simultaneously:
+A transformer exhibits \textbf{reasoning-like computation} at layer $l$ and
+token $t$ when three conditions hold simultaneously:
 \begin{enumerate}[nosep]
 \item \textbf{Interaction}: The curvature $\|\Omega(l,t)\|$ is
   significantly above baseline---the model is doing non-trivial,
-  nonlinear processing.
+  non-separable processing.
 \item \textbf{Propagation}: The metric factor $P^{(l)}$ has high condition
-  number---the model is selectively amplifying some directions.
+  number---information continues to propagate without collapsing into a
+  trivial channel.
 \item \textbf{Dependency}: The dependency $D_{l,t}$ is high---the
   processing at this point actually matters for the output.
 \end{enumerate}
-All three must be present. Interaction without dependency is ``busy work.''
+In plain language: the model must be interacting, carrying information
+forward, and using more than a trivial terminal decision layer. All three
+must be present. Interaction without dependency is ``busy work.''
 Dependency without interaction is just passing information through.
 \end{keyidea}
 
-\section{Defining memory}
+\section{An operational view of memory}
 
-The framework distinguishes two kinds of memory:
+Memory has at least two meanings. Information can be \emph{available} to the
+model because it appears in the prompt or because it is stored in the
+weights. But available information is not the same as \emph{used}
+information. In this book, we focus on \textbf{functional memory}:
+information that continues to influence the model's output across later
+layers. Dependency lets us measure that usage directly.
+
+The framework distinguishes two kinds:
 
 \textbf{Storage memory}: the model's weights encode facts
 (``Paris is the capital of France''). This is a property of the parameters,
@@ -1609,10 +1650,12 @@ computation, and we measure it as \textbf{persistent dependency}:
 If a token from the beginning of the sequence ($\tau = 0$) still has high
 dependency in the final layers, the model is ``remembering'' it functionally.
 
-\section{Defining control}
+\section{An operational view of control}
 
-Control means deliberately changing the model's computation by modifying
-the geometry. The polar decomposition gives us two levers:
+Control means changing the model's internal computation in a way that
+changes the dependency profile and, ultimately, the output. In principle,
+control can act through both rotation and stretching. The polar
+decomposition gives us two levers:
 
 \begin{itemize}[nosep]
 \item \textbf{Metric control}: clamping or modifying the eigenvalues
@@ -1722,8 +1765,8 @@ for l in range(result.n_layers - 1):
               f"kappa={result.condition_numbers[l]:.1f}, "
               f"dep={dep_norm[l]:.3f})")
 \end{lstlisting}
-Which layers qualify as ``reasoning'' layers? Are they concentrated at
-the end of the network?
+Which layers contribute most to the framework's reasoning-like profile?
+Are they concentrated at the end of the network?
 \end{tryit}
 
 \section{Hands-on: measuring functional memory}
@@ -2101,6 +2144,19 @@ Pick one of the open problems above. Design an experiment to make
 progress on it. What data would you need? What metrics would you
 compute? Write a one-page proposal.
 \end{tryit}
+
+\section{Final positioning}
+
+Layer--time geometry does not replace circuit tracing. It answers a different
+question. Tracing tells you which head, neuron, or pathway caused a
+behavior. Layer--time geometry tells you what computational regime the model
+is in, where non-trivial work concentrates, how prompts differ internally,
+and how interventions reshape dependency. What this framework \emph{does not}
+identify is which specific component is responsible for a particular output.
+
+In practice, the two approaches fit together naturally: use layer--time
+geometry to find the interesting regions and regimes; use tracing to zoom in
+mechanistically.
 
 \section{The one thing to remember}
 
