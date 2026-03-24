@@ -2964,92 +2964,6 @@ those changes mean for the model's computation.
 
 
 % ══════════════════════════════════════════════════════════════════════════════
-\backmatter
-% ══════════════════════════════════════════════════════════════════════════════
-
-\chapter*{Glossary}
-\addcontentsline{toc}{chapter}{Glossary}
-
-\begin{center}
-\renewcommand{\arraystretch}{1.5}\small
-\begin{tabular}{@{}L{3.5cm} L{7.5cm}@{}}
-\toprule
-\rowcolor{Navy}
-\textcolor{white}{\textbf{Term}} &
-\textcolor{white}{\textbf{Plain-language definition}} \\
-\midrule
-Hidden state $H(l,t)$ &
-  The model's internal vector for token $t$ at layer $l$. \\
-Layer--time grid &
-  The 2D grid with layers on one axis and tokens on the other. \\
-Whitening &
-  PCA-based standardization that makes dimensions uncorrelated
-  and unit-variance. \\
-Layer kernel $K_{\text{layer}}$ &
-  Similarity between two layers, averaged over tokens. \\
-Transition operator $T^{(l)}$ &
-  Best linear map from layer $l$ to layer $l+1$. \\
-Polar decomposition &
-  Writing $T = UP$: rotation $U$ times stretching $P$. \\
-Rotation $U^{(l)}$ &
-  The direction-changing part of the layer transition. \\
-Metric factor $P^{(l)}$ &
-  The stretching part; eigenvalues show which directions are
-  amplified or compressed. \\
-Condition number $\kappa$ &
-  Ratio of largest to smallest eigenvalue of $P$; measures
-  selectivity. \\
-Effective rank &
-  How many directions are actively used (entropy-based). \\
-Curvature $\Omega(l,t)$ &
-  Non-commutativity of going ``right then up'' vs.\ ``up then right''
-  on the grid. Measures nonlinear interaction. \\
-Dependency $D_l$ &
-  Gradient norm of the output score w.r.t.\ layer $l$'s hidden
-  state. Measures how much layer $l$ matters for the output. \\
-Dependency horizon $H_\alpha$ &
-  Layer at which $\alpha\%$ of total dependency is reached. \\
-Functional memory &
-  Early-token information that persists and influences the output
-  in late layers. \\
-Metric control &
-  Modifying the eigenvalues of $P^{(l)}$ to change the model's
-  computation. \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-
-\chapter*{Further Reading}
-\addcontentsline{toc}{chapter}{Further Reading}
-
-\begin{itemize}[nosep]
-\item \textbf{The research monograph:} Sudjianto and Zhang,
-  \emph{Layer--Time Geometry of Transformer Computation: Kernels,
-  Operators, and Dependency in Language Models} (2026).
-  The complete mathematical treatment with proofs and algorithms.
-
-\item \textbf{Linear algebra review:} Strang, \emph{Introduction to
-  Linear Algebra} (6th ed.). Chapters on eigenvalues, SVD, and
-  positive-definite matrices are especially relevant.
-
-\item \textbf{PCA and statistical methods:} Hastie, Tibshirani, and
-  Friedman, \emph{The Elements of Statistical Learning} (2nd ed.).
-  Chapters 3 and 14.
-
-\item \textbf{Transformer architecture:} Vaswani et al.,
-  ``Attention Is All You Need'' (2017). The original paper.
-
-\item \textbf{Mechanistic interpretability:} Elhage et al.,
-  ``A Mathematical Framework for Transformer Circuits'' (2021).
-  Complementary to our geometric approach.
-
-\item \textbf{Experimental design:} Montgomery,
-  \emph{Design and Analysis of Experiments} (10th ed.).
-  Background on the factorial DOE used in Chapter~\ref{chap:experiments}.
-\end{itemize}
-
-
 % ╔════════════════════════════════════════════════════════════════════════════╗
 % ║  APPENDIX C: Linear Algebra for Layer-Time Geometry                      ║
 % ╚════════════════════════════════════════════════════════════════════════════╝
@@ -3550,6 +3464,92 @@ Positive definite matrices & 2, 4
 \bottomrule
 \end{tabularx}
 \end{table}
+
+
+\backmatter
+% ══════════════════════════════════════════════════════════════════════════════
+
+\chapter*{Glossary}
+\addcontentsline{toc}{chapter}{Glossary}
+
+\begin{center}
+\renewcommand{\arraystretch}{1.5}\small
+\begin{tabular}{@{}L{3.5cm} L{7.5cm}@{}}
+\toprule
+\rowcolor{Navy}
+\textcolor{white}{\textbf{Term}} &
+\textcolor{white}{\textbf{Plain-language definition}} \\
+\midrule
+Hidden state $H(l,t)$ &
+  The model's internal vector for token $t$ at layer $l$. \\
+Layer--time grid &
+  The 2D grid with layers on one axis and tokens on the other. \\
+Whitening &
+  PCA-based standardization that makes dimensions uncorrelated
+  and unit-variance. \\
+Layer kernel $K_{\text{layer}}$ &
+  Similarity between two layers, averaged over tokens. \\
+Transition operator $T^{(l)}$ &
+  Best linear map from layer $l$ to layer $l+1$. \\
+Polar decomposition &
+  Writing $T = UP$: rotation $U$ times stretching $P$. \\
+Rotation $U^{(l)}$ &
+  The direction-changing part of the layer transition. \\
+Metric factor $P^{(l)}$ &
+  The stretching part; eigenvalues show which directions are
+  amplified or compressed. \\
+Condition number $\kappa$ &
+  Ratio of largest to smallest eigenvalue of $P$; measures
+  selectivity. \\
+Effective rank &
+  How many directions are actively used (entropy-based). \\
+Curvature $\Omega(l,t)$ &
+  Non-commutativity of going ``right then up'' vs.\ ``up then right''
+  on the grid. Measures nonlinear interaction. \\
+Dependency $D_l$ &
+  Gradient norm of the output score w.r.t.\ layer $l$'s hidden
+  state. Measures how much layer $l$ matters for the output. \\
+Dependency horizon $H_\alpha$ &
+  Layer at which $\alpha\%$ of total dependency is reached. \\
+Functional memory &
+  Early-token information that persists and influences the output
+  in late layers. \\
+Metric control &
+  Modifying the eigenvalues of $P^{(l)}$ to change the model's
+  computation. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+\chapter*{Further Reading}
+\addcontentsline{toc}{chapter}{Further Reading}
+
+\begin{itemize}[nosep]
+\item \textbf{The research monograph:} Sudjianto and Zhang,
+  \emph{Layer--Time Geometry of Transformer Computation: Kernels,
+  Operators, and Dependency in Language Models} (2026).
+  The complete mathematical treatment with proofs and algorithms.
+
+\item \textbf{Linear algebra review:} Strang, \emph{Introduction to
+  Linear Algebra} (6th ed.). Chapters on eigenvalues, SVD, and
+  positive-definite matrices are especially relevant.
+
+\item \textbf{PCA and statistical methods:} Hastie, Tibshirani, and
+  Friedman, \emph{The Elements of Statistical Learning} (2nd ed.).
+  Chapters 3 and 14.
+
+\item \textbf{Transformer architecture:} Vaswani et al.,
+  ``Attention Is All You Need'' (2017). The original paper.
+
+\item \textbf{Mechanistic interpretability:} Elhage et al.,
+  ``A Mathematical Framework for Transformer Circuits'' (2021).
+  Complementary to our geometric approach.
+
+\item \textbf{Experimental design:} Montgomery,
+  \emph{Design and Analysis of Experiments} (10th ed.).
+  Background on the factorial DOE used in Chapter~\ref{chap:experiments}.
+\end{itemize}
 
 
 \end{document}
