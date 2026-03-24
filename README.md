@@ -99,7 +99,15 @@ Nine Jupyter notebooks in `tutorials/`, one per chapter of the companion book. E
 
 ## The Companion Book
 
-`monograph_undergrad.pdf` (72 pages) is a self-contained undergraduate-level companion that explains all concepts with intuition, analogies, and worked examples. No differential geometry or measure theory required -- just linear algebra and basic calculus.
+`monograph_undergrad.pdf` (105 pages) is a self-contained undergraduate-level companion that explains all concepts with intuition, analogies, and worked examples. No differential geometry or measure theory required -- just linear algebra and basic calculus.
+
+The book includes three appendices for readers who need background:
+
+| Appendix | Topic | Contents |
+|----------|-------|----------|
+| **A** | Neural Networks & Transformers | Linear models, gradient descent, CNNs/RNNs, full transformer architecture |
+| **B** | GPT & Large Language Models | Complete pipeline from tokenization to decoding, training, scaling |
+| **C** | Linear Algebra | Vectors, eigenvalues, SVD, PCA, polar decomposition, and every other LA tool used in the text |
 
 The LaTeX source (`monograph_undergrad.tex`) is included for reference.
 
@@ -131,7 +139,7 @@ layer-time-geometry/
     _compat.py               # Device detection
   tutorials/                 # 9 Jupyter notebooks
   tests/                     # Test suite
-  monograph_undergrad.pdf    # Companion book (72 pages)
+  monograph_undergrad.pdf    # Companion book (105 pages, 3 appendices)
   monograph_undergrad.tex    # LaTeX source
   pyproject.toml             # Package configuration
 ```
