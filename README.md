@@ -180,7 +180,7 @@ For the research monograph:
 
 ## Authors
 
-- **Agus Sudjianto** -- H2O.ai
+- **Agus Sudjianto** -- H2O.ai; Center for Trustworthy AI Through Model Risk Management, University of North Carolina Charlotte
 - **Aijun Zhang** -- Wells Fargo
 
 ## License
