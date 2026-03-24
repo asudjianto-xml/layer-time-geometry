@@ -2318,144 +2318,596 @@ GPT, LLaMA, Qwen, DeepSeek, and essentially all modern large language models.
 
 % (no companion notebook for this appendix)
 
-This appendix explains how decoder-only transformers are trained to generate
-text, how they scale into ``large language models'' (LLMs), and why
-understanding their internals matters.
+This appendix walks through every step of how a GPT-style large language
+model processes text---from raw characters to generated output.
+Understanding this pipeline is essential for interpreting the geometric
+measurements in the main text, because every quantity we compute
+(curvature, dependency, condition numbers) operates on the intermediate
+representations produced at each step.
 
 % ──────────────────────────────────────────────────────────────────────────────
-\section{The GPT idea: next-token prediction}
+\section{The big picture: what GPT does}
 
-GPT (Generative Pre-trained Transformer) is based on a remarkably simple
-objective: \textbf{predict the next token}.
+GPT (Generative Pre-trained Transformer) is a \textbf{decoder-only}
+transformer trained on a single objective: \textbf{predict the next token}.
+Given text so far, the model produces a probability distribution over the
+entire vocabulary for what comes next.  That is it.  Every capability you
+see---question answering, translation, code generation, reasoning---emerges
+from this one objective applied to enough data.
 
-Given a sequence of tokens $(x_1, x_2, \ldots, x_{t-1})$, the model
-computes a probability distribution over the vocabulary for the next token:
-\[
-  P(x_t \mid x_1, \ldots, x_{t-1}) =
-  \text{softmax}\!\bigl(\mathbf{W}_{\text{head}} \, \mathbf{h}^{(L)}_t\bigr),
-\]
-where $\mathbf{h}^{(L)}_t$ is the hidden state at the final layer~$L$ for
-token position~$t$, and $\mathbf{W}_{\text{head}}$ is the \textbf{language
-model head}---a linear projection from hidden dimension to vocabulary size.
+The full pipeline from input text to output text has seven stages:
+
+\begin{center}\small
+\begin{tabular}{@{}cl@{}}
+\toprule
+\textbf{Stage} & \textbf{What happens} \\
+\midrule
+1. Tokenization     & Raw text $\to$ sequence of integer token IDs \\
+2. Token embedding  & Token IDs $\to$ dense vectors \\
+3. Position encoding & Inject position information into embeddings \\
+4. Transformer layers & Repeated self-attention + feed-forward processing \\
+5. Final layer norm  & Normalize the output of the last layer \\
+6. Language model head & Project hidden states to vocabulary logits \\
+7. Decoding          & Convert logits to text (sampling or greedy) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+We now explain each stage in detail, using the prompt
+\texttt{"The capital of France is"} as a running example.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Stage 1: Tokenization}
+
+The model does not see characters or words.  It sees \textbf{tokens}---
+subword units from a fixed vocabulary, typically 32,000 to 150,000 entries.
+The vocabulary is constructed during training using algorithms like
+\textbf{Byte-Pair Encoding (BPE)} or \textbf{SentencePiece}.
 
 \begin{keyidea}
-Everything the model ``knows'' must be encoded in the hidden states
-$\mathbf{h}^{(l)}_t$.  By studying the geometry of these hidden states, we
-study how the model processes and stores information---which is exactly what
-this book does.
+Tokenization determines what the model's ``atoms'' of language are.  Common
+words become single tokens; rare words are split into subword pieces.  This
+balances vocabulary size with sequence length.
 \end{keyidea}
 
-The training loss is the \textbf{cross-entropy} between the predicted
-distribution and the actual next token:
+\paragraph{Example.} For Qwen2.5-7B, our running example tokenizes as:
+
+\begin{center}\small
+\texttt{"The capital of France is"} $\;\to\;$
+\texttt{["The", " capital", " of", " France", " is"]}
+$\;\to\;$ \texttt{[785, 6620, 315, 9822, 374]}
+\end{center}
+
+Each token maps to an integer ID from the vocabulary.  The result is a
+sequence of $T = 5$ integers.
+
+\paragraph{How BPE works.} Starting from individual bytes (or characters),
+BPE repeatedly merges the most frequent adjacent pair into a new token.
+After thousands of merges:
+\begin{itemize}[nosep]
+\item Common words (\texttt{"the"}, \texttt{"is"}) become single tokens.
+\item Rare words (\texttt{"bioluminescence"}) are split:
+  \texttt{["bi", "ol", "umin", "escence"]}.
+\item Any text can be tokenized---no out-of-vocabulary problem.
+\end{itemize}
+
+\begin{lstlisting}[caption={Tokenization in Python}]
+from transformers import AutoTokenizer
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen2.5-7B")
+
+text = "The capital of France is"
+token_ids = tokenizer.encode(text)
+tokens = [tokenizer.decode([tid]) for tid in token_ids]
+
+print(f"Token IDs: {token_ids}")   # [785, 6620, 315, 9822, 374]
+print(f"Tokens:    {tokens}")       # ['The', ' capital', ' of', ' France', ' is']
+print(f"Vocab size: {tokenizer.vocab_size}")  # 151,665
+\end{lstlisting}
+
+\begin{pitfall}
+Tokenization is not the same as splitting by spaces.  The token
+\texttt{" capital"} includes a leading space.  Some words split
+unpredictably.  The number of tokens $T$ determines the width of the
+layer--time grid.
+\end{pitfall}
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Stage 2: Token embedding}
+
+Each token ID is mapped to a dense vector of dimension~$p$ (the
+\textbf{hidden dimension}) via a learned \textbf{embedding table}
+$\mathbf{E} \in \mathbb{R}^{V \times p}$, where $V$ is the vocabulary size:
+\[
+  \mathbf{e}_t = \mathbf{E}[x_t] \in \mathbb{R}^p.
+\]
+This is simply a table lookup---row $x_t$ of the matrix~$\mathbf{E}$.
+
+For Qwen2.5-7B, $V = 151{,}665$ and $p = 3{,}584$, so the embedding table
+alone contains $V \times p \approx 544$ million parameters.
+
+\begin{analogy}
+Think of the embedding table as a dictionary where each word has a
+3{,}584-dimensional ``meaning vector'' instead of a text definition.
+Semantically similar tokens (``king'' and ``queen'') have vectors that
+point in similar directions.
+\end{analogy}
+
+After this stage, our 5 tokens become a matrix of shape $(5, 3584)$---five
+vectors, one per token.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Stage 3: Positional encoding}
+
+Self-attention (Stage~4) is \textbf{permutation-invariant}: it treats the
+input as a set, not a sequence.  Without position information, the model
+cannot distinguish ``dog bites man'' from ``man bites dog.''
+
+\textbf{Positional encodings} inject position information.  Modern GPT
+models use \textbf{Rotary Position Embedding (RoPE)}, which works by
+rotating the query and key vectors in attention:
+\[
+  \mathbf{q}'_t = R(\theta, t) \, \mathbf{q}_t,
+  \qquad
+  \mathbf{k}'_t = R(\theta, t) \, \mathbf{k}_t,
+\]
+where $R(\theta, t)$ is a block-diagonal rotation matrix whose angle
+increases with position~$t$.  The key property is that the dot product
+$\mathbf{q}'_i{}^\top \mathbf{k}'_j$ depends only on the \emph{relative}
+distance $|i - j|$, not on absolute positions.
+
+\begin{keyidea}
+RoPE encodes \emph{relative} position through rotation.  This connects
+directly to the rotation component~$U$ in the polar decomposition
+(Chapter~4): some of the rotation we measure is position-dependent
+rather than content-dependent.
+\end{keyidea}
+
+Older models (GPT-2) used \textbf{learned absolute positional embeddings}:
+a separate embedding table $\mathbf{P} \in \mathbb{R}^{T_{\max} \times p}$
+added to the token embeddings:
+$\mathbf{h}^{(0)}_t = \mathbf{e}_t + \mathbf{P}[t]$.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Stage 4: Transformer layers (the core computation)}
+
+This is where the real processing happens.  The model stacks $L$ identical
+layers (28 for Qwen2.5-7B), each consisting of two sub-layers:
+\textbf{self-attention} and a \textbf{feed-forward network}.
+
+\begin{keyidea}
+\textbf{This is the layer--time grid} from Chapter~1.  The hidden state
+$H(l,t)$ at layer~$l$ and token~$t$ is the output of the $l$-th transformer
+layer for token~$t$.  Everything in this book operates on these hidden
+states.
+\end{keyidea}
+
+\subsection{Step 4a: Layer normalization (pre-norm)}
+
+Before each sub-layer, the hidden state is normalized:
+\[
+  \hat{\mathbf{h}} = \text{RMSNorm}(\mathbf{h})
+  = \frac{\mathbf{h}}{\text{RMS}(\mathbf{h})} \odot \boldsymbol{\gamma},
+  \qquad
+  \text{RMS}(\mathbf{h}) = \sqrt{\frac{1}{p}\sum_{i=1}^{p} h_i^2}.
+\]
+The learnable scale~$\boldsymbol{\gamma}$ has $p$ parameters.  RMSNorm
+(used in most modern models) omits the mean centering of the original
+LayerNorm.  It stabilizes training by keeping hidden-state magnitudes in
+a controlled range.
+
+\subsection{Step 4b: Multi-head self-attention}
+
+Self-attention is the mechanism that lets tokens communicate with each other.
+For each token~$t$, the model computes three vectors from the normalized
+hidden state $\hat{\mathbf{h}}_t$:
+
+\begin{itemize}[nosep]
+\item \textbf{Query} $\mathbf{q}_t = \mathbf{W}_Q \hat{\mathbf{h}}_t$:
+  ``What am I looking for?''
+\item \textbf{Key} $\mathbf{k}_t = \mathbf{W}_K \hat{\mathbf{h}}_t$:
+  ``What do I contain?''
+\item \textbf{Value} $\mathbf{v}_t = \mathbf{W}_V \hat{\mathbf{h}}_t$:
+  ``What information do I provide if selected?''
+\end{itemize}
+
+The weight matrices $\mathbf{W}_Q, \mathbf{W}_K \in \mathbb{R}^{p \times d_k}$
+and $\mathbf{W}_V \in \mathbb{R}^{p \times d_v}$ are learned.
+
+\paragraph{Computing attention scores.}  The attention score between
+token~$i$ (as query) and token~$j$ (as key) is the scaled dot product:
+\[
+  a_{ij} = \frac{\mathbf{q}_i^\top \mathbf{k}_j}{\sqrt{d_k}}.
+\]
+The $\sqrt{d_k}$ scaling prevents the dot products from becoming too large,
+which would push the softmax into saturation.
+
+\paragraph{Causal masking.}  In a GPT model, token~$t$ must not attend to
+future tokens $t+1, t+2, \ldots$.  This is enforced by setting
+$a_{ij} = -\infty$ for all $j > i$ before the softmax:
+\[
+  \alpha_{ij} = \frac{\exp(a_{ij})}{\sum_{k \leq i} \exp(a_{ik})},
+  \qquad j \leq i.
+\]
+The resulting attention weights $\alpha_{ij}$ form a lower-triangular matrix.
+
+\paragraph{Weighted aggregation.}  The attention output for token~$i$ is
+the weighted sum of all value vectors it can see:
+\[
+  \text{Attn}(\mathbf{q}_i) = \sum_{j \leq i} \alpha_{ij} \, \mathbf{v}_j.
+\]
+
+\paragraph{Multiple heads.}  Instead of one set of $(\mathbf{Q}, \mathbf{K},
+\mathbf{V})$, the model uses $H$ parallel \textbf{attention heads}
+(e.g., $H = 28$ for Qwen2.5-7B), each with its own projections and operating
+on a slice of the hidden dimension ($d_k = p / H$).  Each head can
+specialize in different types of relationships (syntactic, semantic,
+positional).  The outputs are concatenated and projected:
+\[
+  \text{MultiHead}(\mathbf{h}_t) =
+  \text{Concat}(\text{head}_1, \ldots, \text{head}_H) \, \mathbf{W}_O,
+\]
+where $\mathbf{W}_O \in \mathbb{R}^{p \times p}$ is the output projection.
+
+\begin{analogy}
+Multi-head attention is like a committee meeting with $H$ sub-committees.
+Each sub-committee (head) investigates a different aspect of the question.
+Their reports are concatenated into a single summary.
+\end{analogy}
+
+\paragraph{Grouped-Query Attention (GQA).}  Modern models like Qwen2.5
+and LLaMA-3 use \textbf{GQA}: multiple query heads share a single key-value
+head.  For example, Qwen2.5-7B has 28 query heads but only 4 key-value
+heads (each shared by 7 query heads).  This reduces the KV-cache size by
+$\sim 7\times$ with minimal quality loss.
+
+\subsection{Step 4c: Residual connection (attention)}
+
+The attention output is \emph{added} to the original hidden state:
+\[
+  \mathbf{h}'_t = \mathbf{h}_t + \text{MultiHead}(\text{RMSNorm}(\mathbf{h}_t)).
+\]
+This \textbf{residual connection} is critical: it creates a ``highway'' for
+gradients during training and ensures that each layer makes an
+\emph{incremental update} rather than a complete replacement.
+
+\begin{keyidea}
+Residual connections explain why the layer kernel (Chapter~3) shows high
+similarity between adjacent layers: each layer only adds a small perturbation
+to the previous representation.  Without residuals, consecutive layers
+could produce wildly different representations.
+\end{keyidea}
+
+\subsection{Step 4d: Feed-forward network (FFN)}
+
+After attention, each token is processed \emph{independently} by a
+feed-forward network.  Modern GPT models use the \textbf{SwiGLU} variant:
+\[
+  \text{FFN}(\mathbf{h}) =
+  \bigl(\text{SiLU}(\mathbf{W}_1 \mathbf{h}) \odot \mathbf{W}_3 \mathbf{h}\bigr)
+  \, \mathbf{W}_2,
+\]
+where $\text{SiLU}(x) = x \cdot \sigma(x)$ is a smooth activation,
+$\odot$ is element-wise multiplication,
+$\mathbf{W}_1, \mathbf{W}_3 \in \mathbb{R}^{p \times d_{\text{ff}}}$, and
+$\mathbf{W}_2 \in \mathbb{R}^{d_{\text{ff}} \times p}$.
+
+The intermediate dimension $d_{\text{ff}}$ is typically $\sim 2.7 \times p$
+(e.g., 18{,}944 for Qwen2.5-7B with $p = 3{,}584$).  The FFN accounts for
+about two-thirds of the model's parameters.
+
+\begin{keyidea}
+Self-attention handles \emph{cross-token} communication (which tokens
+should influence each other).  The FFN handles \emph{per-token} computation
+(transforming each token's representation independently).  In the geometric
+framework, the FFN primarily contributes to the \textbf{stretching}
+(metric factor~$P$) in the polar decomposition, because it amplifies some
+directions and compresses others within each token's representation.
+\end{keyidea}
+
+\subsection{Step 4e: Residual connection (FFN)}
+
+The FFN output is again added via a residual connection:
+\[
+  \mathbf{h}^{(l+1)}_t = \mathbf{h}'_t + \text{FFN}(\text{RMSNorm}(\mathbf{h}'_t)).
+\]
+The vector $\mathbf{h}^{(l+1)}_t$ is the hidden state at layer $l+1$ for
+token~$t$---the next row in the layer--time grid.
+
+\subsection{Summary: one complete layer}
+
+Putting it all together, one transformer layer computes:
+\begin{align*}
+  \mathbf{h}'_t &= \mathbf{h}^{(l)}_t + \text{MultiHead}\bigl(\text{RMSNorm}(\mathbf{h}^{(l)}_t)\bigr)
+  && \text{(attention + residual)} \\
+  \mathbf{h}^{(l+1)}_t &= \mathbf{h}'_t + \text{FFN}\bigl(\text{RMSNorm}(\mathbf{h}'_t)\bigr)
+  && \text{(FFN + residual)}
+\end{align*}
+This is repeated $L$ times.  For Qwen2.5-7B ($L = 28$), the input embedding
+passes through 28 layers of this computation, producing a stack of 28 hidden
+states per token---the columns of the layer--time grid.
+
+\begin{lstlisting}[caption={Tracing the shapes through one layer (pseudocode)}]
+# Input: h of shape (T, p) = (5, 3584)
+
+# Attention sub-layer
+h_norm = rms_norm(h)                    # (5, 3584)
+Q = h_norm @ W_Q                        # (5, d_k*H) -> split into H heads
+K = h_norm @ W_K                        # (5, d_k*H_kv) -> shared KV heads
+V = h_norm @ W_V                        # (5, d_v*H_kv)
+attn_out = multi_head_attention(Q, K, V) # (5, 3584)
+h = h + attn_out                         # residual -> (5, 3584)
+
+# FFN sub-layer
+h_norm = rms_norm(h)                     # (5, 3584)
+gate = silu(h_norm @ W1)                 # (5, 18944)
+up = h_norm @ W3                         # (5, 18944)
+ffn_out = (gate * up) @ W2              # (5, 3584)
+h = h + ffn_out                          # residual -> (5, 3584)
+
+# Output: h of shape (T, p) = (5, 3584) -- same shape, new values
+\end{lstlisting}
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Stage 5: Final layer normalization}
+
+After the last transformer layer, one more RMSNorm is applied:
+\[
+  \mathbf{h}^{(\text{final})}_t = \text{RMSNorm}(\mathbf{h}^{(L)}_t).
+\]
+This ensures the representations entering the language model head have
+consistent scale.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Stage 6: Language model head}
+
+The \textbf{language model head} (also called the \textbf{unembedding})
+projects each token's final hidden state onto the vocabulary:
+\[
+  \boldsymbol{\ell}_t = \mathbf{W}_{\text{head}} \, \mathbf{h}^{(\text{final})}_t
+  \in \mathbb{R}^V,
+\]
+where $\mathbf{W}_{\text{head}} \in \mathbb{R}^{V \times p}$.  Many models
+\emph{tie} this matrix to the transposed embedding table:
+$\mathbf{W}_{\text{head}} = \mathbf{E}^\top$, so the same vectors that
+define token meanings are also used to predict tokens.
+
+The vector $\boldsymbol{\ell}_t$ is called the \textbf{logits}---raw
+unnormalized scores for each vocabulary entry.  A softmax converts them to
+probabilities:
+\[
+  P(x_{t+1} = w \mid x_1, \ldots, x_t) =
+  \frac{\exp(\ell_{t,w})}{\sum_{w'=1}^{V} \exp(\ell_{t,w'})}.
+\]
+
+\begin{keyidea}
+The \textbf{dependency} $D_l = \|\partial s / \partial \tilde{H}^{(l)}\|$
+from Chapter~7 measures how much each layer's hidden state contributes to
+these logits.  High dependency at layer~$l$ means that layer~$l$'s
+computation materially affects the next-token prediction.
+\end{keyidea}
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Stage 7: Decoding}
+
+Given the probability distribution $P(x_{t+1} \mid \ldots)$, we need to
+select an actual token.  This is the \textbf{decoding} step.
+
+\subsection{Greedy decoding}
+
+Pick the highest-probability token:
+$x_{t+1} = \arg\max_w P(w \mid x_1, \ldots, x_t)$.
+Fast and deterministic, but can produce repetitive, ``safe'' text.
+
+\subsection{Sampling with temperature}
+
+Scale the logits before softmax:
+$P_\tau(w) \propto \exp(\ell_w / \tau)$.
+\begin{itemize}[nosep]
+\item $\tau < 1$: sharper distribution, more ``confident'' (closer to greedy).
+\item $\tau = 1$: unmodified probabilities.
+\item $\tau > 1$: flatter distribution, more ``creative'' (more randomness).
+\end{itemize}
+
+\subsection{Top-$k$ sampling}
+
+Restrict sampling to the $k$ most likely tokens, setting all other
+probabilities to zero.  For example, top-$k = 50$ means only the 50
+highest-probability tokens are considered.
+
+\subsection{Top-$p$ (nucleus) sampling}
+
+Instead of a fixed $k$, include the smallest set of tokens whose cumulative
+probability exceeds $p$ (e.g., $p = 0.9$).  This adapts the candidate set
+to the model's confidence: when the model is certain, very few tokens
+qualify; when uncertain, many do.
+
+\subsection{Autoregressive generation loop}
+
+Generation proceeds one token at a time:
+\begin{enumerate}[nosep]
+\item \textbf{Prompt encoding:} run the full prompt through all $L$ layers.
+  Cache the key and value matrices (\textbf{KV-cache}).
+\item \textbf{Sample next token:} apply the LM head to the last token's
+  final hidden state, decode one token.
+\item \textbf{Append and continue:} feed the new token through all layers
+  (using the KV-cache to avoid recomputing past tokens).
+\item \textbf{Repeat} until the model emits an end-of-sequence token or
+  a maximum length is reached.
+\end{enumerate}
+
+\begin{lstlisting}[caption={Autoregressive generation (simplified)}]
+# Prompt encoding (prefill)
+token_ids = tokenizer.encode("The capital of France is")
+hidden_states, kv_cache = model.forward(token_ids)
+
+# Generation loop
+for step in range(max_new_tokens):
+    logits = lm_head(hidden_states[:, -1, :])  # last token only
+    probs = softmax(logits / temperature)
+    next_token = sample(probs, top_p=0.9)
+
+    if next_token == eos_token_id:
+        break
+
+    # Feed just the new token, reusing cached K,V
+    hidden_states, kv_cache = model.forward(
+        [next_token], kv_cache=kv_cache
+    )
+    token_ids.append(next_token)
+
+print(tokenizer.decode(token_ids))
+# "The capital of France is Paris."
+\end{lstlisting}
+
+\begin{keyidea}
+The \textbf{KV-cache} is why generation cost scales linearly with sequence
+length rather than quadratically.  At each step, only the new token's
+queries need to attend to all cached keys/values---the past keys and values
+are not recomputed.
+\end{keyidea}
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{The complete forward pass: a worked example}
+
+Let us trace the entire pipeline for our running example:
+
+\begin{enumerate}
+\item \textbf{Input:} \texttt{"The capital of France is"}
+
+\item \textbf{Tokenize:} $[785, 6620, 315, 9822, 374]$ --- 5 tokens.
+
+\item \textbf{Embed:} Look up 5 rows from $\mathbf{E}$
+  $\to$ matrix of shape $(5, 3584)$.
+
+\item \textbf{Position:} Apply RoPE rotations to Q and K at each layer
+  (positions 0--4).
+
+\item \textbf{Layer 1:}
+  \begin{itemize}[nosep]
+  \item RMSNorm $\to$ compute Q, K, V $\to$ causal attention $\to$
+    residual add.
+  \item RMSNorm $\to$ SwiGLU FFN $\to$ residual add.
+  \item Output: $(5, 3584)$---the hidden state at layer~1.
+  \end{itemize}
+
+\item \textbf{Layers 2--28:} repeat the same computation.  Each layer reads
+  the previous layer's output and writes a new $(5, 3584)$ matrix.
+
+\item \textbf{Final RMSNorm:} normalize the output of layer~28.
+
+\item \textbf{LM head:} project the last token's hidden state
+  ($\mathbf{h}^{(28)}_5 \in \mathbb{R}^{3584}$) to logits
+  $\in \mathbb{R}^{151665}$.
+
+\item \textbf{Softmax:} convert logits to probabilities.  The
+  highest-probability token is likely \texttt{"Paris"} (token ID for
+  ``~Paris'').
+
+\item \textbf{Decode:} output \texttt{"Paris"} and optionally continue
+  generating.
+\end{enumerate}
+
+The \textbf{layer--time grid} from Chapter~1 is the $28 \times 5$ matrix
+of hidden states produced in steps 5--6.  The \texttt{ltg.analyse()} function
+extracts these hidden states and computes all geometric quantities on them.
+
+% ──────────────────────────────────────────────────────────────────────────────
+\section{Training: how GPT learns}
+
+\subsection{The training objective}
+
+GPT is trained on \textbf{next-token prediction}.  Given a sequence
+$(x_1, \ldots, x_T)$ from the training corpus, the loss is:
 \[
   \mathcal{L} = -\sum_{t=1}^{T} \log P(x_t \mid x_1, \ldots, x_{t-1}).
 \]
+Thanks to causal masking, all $T$ predictions are computed in a single
+forward pass---making training highly parallelizable (unlike RNNs, which
+must process tokens sequentially).
 
-\subsection{Causal masking}
+\subsection{Pre-training}
 
-During training, the model processes the entire sequence at once but uses a
-\textbf{causal mask} to prevent each token from attending to future tokens.
-This means token~$t$ can only see tokens~$1, 2, \ldots, t$---exactly
-mimicking the left-to-right generation process.
+The model is trained on a massive text corpus (trillions of tokens) using
+gradient descent with the Adam optimizer.  This \textbf{pre-training} phase
+gives the model broad language understanding, factual knowledge, and basic
+reasoning abilities.
 
-\subsection{Generation: autoregressive decoding}
+\subsection{Fine-tuning and alignment}
 
-To generate text, the model works one token at a time:
+After pre-training, the model is further refined:
 \begin{enumerate}[nosep]
-\item Feed the prompt through the model.
-\item Sample or select the most likely next token from $P(x_t \mid \ldots)$.
-\item Append that token to the sequence.
-\item Repeat from step~1 with the extended sequence.
+\item \textbf{Supervised fine-tuning (SFT):} train on curated
+  (instruction, response) pairs to teach the model to follow instructions.
+\item \textbf{RLHF / DPO:} use human preference data to align the model's
+  outputs with human expectations.  \textbf{RLHF} (Reinforcement Learning
+  from Human Feedback) trains a reward model and optimizes against it.
+  \textbf{DPO} (Direct Preference Optimization) skips the reward model
+  and directly optimizes on preference pairs.
 \end{enumerate}
 
-\begin{analogy}
-A GPT model is like an author who writes one word at a time, each time
-re-reading everything written so far to decide the next word.  The ``style''
-and ``knowledge'' of the author are encoded in the weights; the
-``thought process'' for each word is the forward pass through the layers.
-\end{analogy}
-
 % ──────────────────────────────────────────────────────────────────────────────
-\section{Scaling: from GPT to large language models}
+\section{Scaling: from GPT-2 to modern LLMs}
 
-The GPT approach scales remarkably well.  Increasing model size (parameters),
+The GPT approach scales remarkably well.  Increasing model size,
 dataset size, and compute produces predictably better models---a
 relationship described by \textbf{scaling laws} (Kaplan et al., 2020;
 Hoffmann et al., 2022).
 
 \begin{center}\small
-\begin{tabular}{@{}lrrrl@{}}
+\begin{tabular}{@{}lrrrrl@{}}
 \toprule
-\textbf{Model} & \textbf{Parameters} & \textbf{Layers} & \textbf{Hidden dim} & \textbf{Year} \\
+\textbf{Model} & \textbf{Params} & \textbf{Layers} & \textbf{Dim} & \textbf{Heads} & \textbf{Year} \\
 \midrule
-GPT-2       & 1.5B  & 48  & 1600  & 2019 \\
-GPT-3       & 175B  & 96  & 12288 & 2020 \\
-LLaMA-2 7B  & 7B    & 32  & 4096  & 2023 \\
-Qwen2.5-7B  & 7B    & 28  & 3584  & 2024 \\
-Qwen2.5-32B & 32B   & 64  & 5120  & 2024 \\
-LLaMA-3 70B & 70B   & 80  & 8192  & 2024 \\
+GPT-2       & 1.5B  & 48  & 1600  & 25  & 2019 \\
+GPT-3       & 175B  & 96  & 12288 & 96  & 2020 \\
+LLaMA-2 7B  & 7B    & 32  & 4096  & 32  & 2023 \\
+Qwen2.5-7B  & 7B    & 28  & 3584  & 28  & 2024 \\
+Qwen2.5-32B & 32B   & 64  & 5120  & 40  & 2024 \\
+LLaMA-3 70B & 70B   & 80  & 8192  & 64  & 2024 \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 \begin{finding}
 In this book, we primarily analyze Qwen2.5-7B (28 layers, 3584 hidden
-dimensions) and validate results on DeepSeek-R1-Distill-Qwen-7B and
-Qwen2.5-32B.  The geometric framework applies to \emph{any} decoder-only
-transformer, regardless of size.
+dimensions, 28 attention heads with 4 KV heads) and validate results on
+DeepSeek-R1-Distill-Qwen-7B and Qwen2.5-32B.  The geometric framework
+applies to \emph{any} decoder-only transformer.
 \end{finding}
 
 \subsection{What makes LLMs ``large''?}
 
 Three things scale together:
 \begin{itemize}[nosep]
-\item \textbf{Parameters:} more layers, wider hidden states, more attention
-  heads.  A 7B-parameter model has $\sim$7 billion learned weights.
+\item \textbf{Parameters:} more layers ($L$), wider hidden states ($p$),
+  more attention heads ($H$).  A 7B-parameter model stores $\sim$14\,GB of
+  weights in 16-bit precision.
 \item \textbf{Training data:} modern LLMs train on trillions of tokens from
   the internet, books, code, and curated datasets.
 \item \textbf{Compute:} training GPT-3 required $\sim$3.6 $\times 10^{23}$
-  floating-point operations.  Modern models require even more.
+  FLOPs.  Modern frontier models require orders of magnitude more.
 \end{itemize}
 
 % ──────────────────────────────────────────────────────────────────────────────
-\section{Key techniques in modern LLMs}
+\section{In-context learning}
 
-\subsection{Pre-training and fine-tuning}
+A remarkable emergent property of LLMs is \textbf{in-context learning}: the
+ability to perform new tasks from examples in the prompt, without updating
+any weights.
 
-LLM development typically has two stages:
-\begin{enumerate}[nosep]
-\item \textbf{Pre-training:} next-token prediction on a massive corpus.
-  This gives the model broad language understanding and world knowledge.
-\item \textbf{Fine-tuning:} additional training on curated data for
-  specific tasks.  This includes \textbf{instruction tuning} (teaching
-  the model to follow instructions) and \textbf{RLHF} (reinforcement
-  learning from human feedback, aligning the model with human preferences).
-\end{enumerate}
-
-\subsection{In-context learning}
-
-A remarkable property of LLMs is \textbf{in-context learning}: the ability
-to perform new tasks by conditioning on examples provided in the prompt,
-without updating any weights.
-
-\begin{lstlisting}[caption={In-context learning: the model learns the pattern from examples}]
+\begin{lstlisting}[caption={In-context learning: the model infers the task from examples}]
 Translate English to French:
   sea otter => loutre de mer
   cheese => fromage
   hello =>
 \end{lstlisting}
 
-The model produces ``bonjour'' without any French-specific training.  How?
+The model produces ``bonjour'' without any French-specific fine-tuning.  How?
 The geometric framework suggests that in-context learning modifies the
 dependency profile: the example tokens acquire high dependency, steering the
-model's computation.
-
-\subsection{The KV-cache and efficient inference}
-
-During generation, the model caches the key and value matrices from previous
-tokens (the \textbf{KV-cache}) so they don't need to be recomputed.  This
-makes each new token require only one forward pass through the layers,
-rather than reprocessing the entire sequence.
+model's computation.  The curvature profile also shifts, indicating that
+the model engages different computational pathways when in-context examples
+are present.
 
 % ──────────────────────────────────────────────────────────────────────────────
 \section{Why study model internals?}
@@ -2487,29 +2939,33 @@ structure tells you what the model is doing.
 \section{Connecting to the main text}
 
 The main chapters of this book analyze hidden states $H(l,t)$---the
-vectors produced at each layer and token position.  Here is how the pieces
-connect:
+vectors produced at each layer and token position.  Here is how the GPT
+pipeline connects to each chapter:
 
 \begin{center}\small
 \begin{tabular}{@{}ll@{}}
 \toprule
-\textbf{Concept from this appendix} & \textbf{Where it appears in the book} \\
+\textbf{GPT pipeline stage} & \textbf{Where it appears in the book} \\
 \midrule
-Hidden states $\mathbf{h}^{(l)}_t$ & Chapter~1: the layer--time grid \\
-Self-attention (token mixing) & Chapter~5: curvature from path non-commutativity \\
-Feed-forward network (per-token) & Chapter~4: stretching in polar decomposition \\
-Residual connections & Chapter~3: high layer-kernel similarity \\
-Next-token prediction & Chapter~7: dependency via $\partial s / \partial H$ \\
-Causal masking & Chapters~8--9: why last token is special \\
-Scaling (layers, width) & Chapter~6: cross-model validation \\
+Tokenization (Stage 1)              & Determines grid width $T$ \\
+Token embedding (Stage 2)           & Layer 0 of the grid (before whitening) \\
+Positional encoding (Stage 3)       & Part of rotation component $U$ (Ch.~4) \\
+Self-attention (Stage 4b)           & Curvature from cross-token interaction (Ch.~5) \\
+Feed-forward network (Stage 4d)     & Stretching factor $P$ in polar decomp.\ (Ch.~4) \\
+Residual connections (Stage 4c,e)   & High layer-kernel similarity (Ch.~3) \\
+LM head and softmax (Stage 6)      & Dependency: $\partial s / \partial H$ (Ch.~7) \\
+Causal masking (Stage 4b)          & Last token has highest dependency (Ch.~8--9) \\
+Autoregressive decoding (Stage 7)   & Generation trajectory analysis \\
+Scaling (layers, width)             & Cross-model validation (Ch.~6) \\
 \bottomrule
 \end{tabular}
 \end{center}
 
-You do not need to understand every detail of the transformer to use the
-geometric framework.  The key insight is simple: the hidden states exist,
-they change from layer to layer, and we can measure \emph{how} they change
-using the tools of linear algebra.
+You do not need to memorize every architectural detail.  The essential
+insight is this: the model produces a grid of hidden-state vectors, one per
+(layer, token) position.  These vectors change systematically from layer to
+layer.  The tools in this book measure \emph{how} they change, and what
+those changes mean for the model's computation.
 
 
 % ══════════════════════════════════════════════════════════════════════════════
