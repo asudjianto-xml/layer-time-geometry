@@ -1,188 +1,246 @@
-# Layer-Time Geometry: How Language Models Process Information
+# Learning Geometric Algebra Through Transformer Geometry
 
-A Python library and companion book for measuring the internal computational structure of transformer language models.
+This is a book about **Geometric Algebra**. It teaches you the Clifford algebra Cl(*k*, 0) through a concrete, fascinating application: understanding how large language models process information internally.
 
-## What is this?
+You learn GA one concept at a time. Each chapter introduces a single algebraic idea, develops it with small examples you can work by hand, and then immediately applies it to real data extracted from a transformer language model. The transformer is your *laboratory*: a place where abstract algebraic concepts become visible, measurable, and surprising.
 
-Existing interpretability methods often explain model behavior locally -- tracing specific heads, neurons, or circuits. This framework serves a different purpose. It provides a **global measurement framework** for transformer computation: a way to summarize the hidden-state field across layers and tokens, compare prompts and models statistically, identify where interaction and dependency concentrate, and study how interventions propagate through the computation.
+> *Rotors, bivectors, and holonomy in the hidden-state field of transformers*
 
-It sits at a **mesoscopic layer** between black-box evaluation and fine-grained circuit tracing:
+**Authors:** Agus Sudjianto, Sandi Setiawan, Aijun Zhang
 
-| Level | Method | Question answered |
-|-------|--------|-------------------|
-| Black-box evaluation | Benchmarks, red-teaming | Did the model get it right? |
-| **Layer-time geometry** | **This library** | **Where and how does computation organize?** |
-| Circuit tracing | Activation patching, probing | Which head or neuron is responsible? |
+## Why Transformers?
 
-Use layer-time geometry to find the interesting regions and regimes; use tracing to zoom in mechanistically.
+Geometric Algebra was born in physics and has thrived in computer graphics, robotics, and signal processing. But transformers offer something these fields do not: a high-dimensional space (*k* = 256 after whitening) where *every* GA concept — bivectors, rotors, holonomy, commutators — appears naturally in the data.
 
-**Three core ideas:**
+In 3D physics, a bivector is just a dressed-up cross product. In R^256, bivectors have 32,640 independent components, multiple principal planes, and rich internal structure. This is where GA earns its keep.
 
-1. **Whitening** -- PCA-based projection to an isotropic space where geometric operations are valid
-2. **Polar decomposition** -- each layer transition = rotation (redirecting information) + stretching (amplifying/compressing)
-3. **Dependency** -- gradient-based measurement of how much each layer matters for the output
+By learning GA through this lens, you gain two things at once: a deep understanding of a beautiful algebra, and a new way to see inside the models that are reshaping technology.
+
+## What You Need
+
+- **Linear algebra**: matrix multiplication, eigenvalues, orthogonal matrices, SVD. A first undergraduate course is sufficient.
+- **Python**: NumPy-level comfort. The code is simple and self-contained.
+- **Calculus**: partial derivatives for the dependency chapter. You can skip that chapter if needed.
+- **No prior GA knowledge** — the book starts from vectors.
+- **No prior ML knowledge** — Appendix A covers everything you need about transformers.
+
+## How to Read This Book
+
+Each chapter follows the same pattern:
+
+1. **The GA concept** — introduced abstractly with small (R^3 or R^4) examples.
+2. **In the transformer** — the same concept applied to real hidden-state data from a language model.
+3. **Code** — working Python using the `layer_time_ga` library. Every code block runs in the companion Jupyter notebooks.
+4. **Exercises** — both pure GA problems and transformer-data explorations.
+
+The chapters build sequentially. Read them in order the first time.
+
+## Three Kinds of Statement
+
+This book mixes mathematics, computation, and empirical observation. To keep the distinction clear, we use three categories throughout:
+
+- **GA identity** (exact). A mathematical fact that holds in any Clifford algebra. Example: the geometric product decomposes as *ab* = *a* · *b* + *a* ∧ *b*. These do not depend on any model or dataset.
+- **Computational construction** (defined). A procedure we define and apply to transformer data: whitening, the layer transition operator, versor decomposition, dependency density, etc. These are methodological choices, not theorems.
+- **Empirical observation** (observed). A pattern we find in a specific model under a specific setup. These observations motivate the narrative, but they are not guaranteed to hold for all models, prompts, or whitening dimensions.
+
+## Structure
+
+### Part I: Vectors and Products (Chapters 1–4)
+| Chapter | GA Concept | Transformer Insight |
+|---------|-----------|-------------------|
+| 1. Vectors Live Somewhere | Inner product, grade-0 | Hidden states encode alignment |
+| 2. The Product That Does Everything | Geometric product | Both alignment and plane in one operation |
+| 3. Planes, Not Axes | Bivectors, principal planes | Layer rotations have multiple planes |
+| 4. When Your Coordinates Lie | Orthonormal frames, Cl(k,0) | Whitening establishes valid GA |
+
+### Part II: Rotations and Rotors (Chapters 5–8)
+| Chapter | GA Concept | Transformer Insight |
+|---------|-----------|-------------------|
+| 5. Rotations Without Matrices | Rotors, Rodrigues, Cayley map | Three ways to build rotations |
+| 6. What a Layer Actually Does | Versor decomposition, three-phase structure, directional flow ratio | Grade-0 (stretch) vs grade-2 (rotation) |
+| 7. Reading the Planes | Plane evolution, similarity | Rotation planes evolve across layers |
+| 8. The Eigenvalue Story | Grade-0 dominance | Stretching controls gradients, not rotation |
+
+### Part III: Curvature and Commutators (Chapters 9–11)
+| Chapter | GA Concept | Transformer Insight |
+|---------|-----------|-------------------|
+| 9. When Order Matters | Commutators, Lie algebra so(k), Baker–Campbell–Hausdorff | Non-commutativity lives in specific planes |
+| 10. Walking in Circles | Holonomy, nonseparability index, curvature regimes | Curvature has direction, not just magnitude |
+| 11. How Much Computation? | Capacity, Jacobi identity | Decompose complexity by plane |
+
+### Part IV: The Full Picture (Chapters 12–14)
+| Chapter | GA Concept | Transformer Insight |
+|---------|-----------|-------------------|
+| 12. Which Planes Matter? | Dependency + bivectors | Identify functionally relevant planes |
+| 13. Diagnosing and Steering | Cayley bivector, bivector coherence, Binet–Cauchy cosine, directional–radial decomposition | Context detection, hallucination diagnosis, plane-specific interventions |
+| 14. What GA Gave Us | Retrospective | Directions invisible to scalar summaries |
+
+### Appendices
+| Appendix | Contents |
+|----------|----------|
+| A. Transformers: A Primer | What hidden states are, the layer–time grid, gradients and dependency |
+| B. GA from Scratch | Formal Clifford algebra, blades, spin group, Lie algebra, pseudoscalar |
+| C. The Matrix–Multivector Bridge | Systematic mapping between matrix operations and GA equivalents |
+| D. Code Reference | Full API documentation for `ltg_ga` and `layer_time_ga` |
+
+## Repository Contents
+
+| Component | Path | Description |
+|-----------|------|-------------|
+| **Textbook** | `monograph_ga_learning.pdf` | 98-page book (PDF) |
+| **LaTeX source** | `monograph_ga_learning.tex` | Book source |
+| **Tutorials** | `tutorials_ga_learning/` | 14 companion Jupyter notebooks |
+| **GA library** | `layer_time_ga/` | Bivectors, rotors, holonomy, commutators, capacity |
+| **Student API** | `ltg_ga.py` | High-level 3-line interface |
+| **Backend** | `layer_time_geometry.py` | PyTorch/NumPy numerical engine |
+| **Figures** | `figures_ga_learning/` | All book figures (regenerable via `run_book_figures.py`) |
+| **Tests** | `tests/` | Unit tests |
 
 ## Installation
 
 ```bash
-pip install layer-time
+pip install ga-transformer-geometry
 ```
 
-For running the tutorial notebooks:
+Or install from source:
 
 ```bash
-pip install layer-time[tutorials]
+git clone https://github.com/asudjianto-xml/GA-Transformer-Geometry.git
+cd GA-Transformer-Geometry
+pip install -e .
 ```
 
-**Requirements:** Python >= 3.10, PyTorch >= 2.0, a HuggingFace-compatible model. GPU (CUDA) recommended.
+With tutorial dependencies:
+
+```bash
+pip install -e ".[tutorials]"
+```
 
 ## Quick Start
 
 ```python
-import ltg
+import ltg_ga
 
-# Load any HuggingFace causal LM
-model = ltg.load_model("Qwen/Qwen2.5-7B", device="cuda")
+# Load a model
+model = ltg_ga.load_model("Qwen/Qwen2.5-7B")
 
-# Analyse a prompt in one line
-result = ltg.analyse("The capital of France is", model=model)
+# Run GA analysis
+result = ltg_ga.analyse("The capital of France is", model=model)
 
-# See what happened
+# See the summary
 result.summary()
 
-# Generate plots
-result.plot_curvature(save_path="curvature.png")
-result.plot_dependency(save_path="dependency.png")
-result.plot_polar(save_path="polar.png")
-result.plot_layer_kernel(save_path="kernel.png")
+# Generate the 4-panel GA summary plot
+result.plot_ga_summary(save_path="ga_summary.png")
 ```
 
-### Compare prompts
+## The `layer_time_ga` Package
+
+The GA library provides 34 public functions and classes across five modules:
+
+### Core Algebra (`layer_time_ga.algebra`)
 
 ```python
-r1 = ltg.analyse("What is 2 + 3?", model=model)
-r2 = ltg.analyse("If all dogs are mammals, is Rex a mammal?", model=model)
-ltg.compare([r1, r2], save_path="comparison.png")
+from layer_time_ga.algebra import (
+    Bivector, Rotor,
+    geometric_product_vectors,     # ab = a.b + a^b
+    bivector_from_skew,            # skew-symmetric matrix → Bivector
+    rotor_from_orthogonal,         # orthogonal matrix → Rotor (via log)
+    rodrigues_rotation,            # two vectors → rotation matrix (exact)
+    rodrigues_rotor,               # two vectors → Rotor (via Rodrigues)
+    cayley_bivector,               # two vectors → (Bivector, tau)
+    rotor_compose, rotor_inverse,  # rotor arithmetic
+    commutator_bivector,           # Lie bracket [B1, B2]
+    grade_decomposition,           # M → grade-0 + grade-2
+    binet_cauchy_cosine,           # oriented bivector alignment
+    directional_flow_ratio,        # ||A||_F / ||S||_F
+)
 ```
 
-### Diagnose failures
+### Decomposition (`layer_time_ga.decomposition`)
 
 ```python
-report = ltg.diagnose(result)
-for flag in report.flags:
-    print(f"  Warning: {flag}")
+from layer_time_ga.decomposition import extract_rotor_field
+
+rf = extract_rotor_field(H_whitened)
+for vd in rf.decompositions:
+    print(f"Layer {vd.layer_index}: angle={vd.rotor.angle:.4f}, "
+          f"kappa={vd.condition_number:.1f}")
+    planes = vd.bivector.principal_planes(n_planes=3)
 ```
 
-### Detect context-ignoring
+### Curvature (`layer_time_ga.curvature`)
 
 ```python
-r_with = ltg.analyse("Mars Base Alpha has 847 people. How many?", model=model)
-r_without = ltg.analyse("How many people live on Mars Base Alpha?", model=model)
-diagnosis = ltg.detect_context_ignoring(r_with, r_without)
-print(f"Context influence: {diagnosis['context_influence']:.2f}")
+from layer_time_ga.curvature import (
+    holonomy_rotor,           # curvature at a single plaquette
+    holonomy_scalar_map,      # (L-1, T-1) scalar curvature map
+    nonseparability_index,    # D(s) = total curvature + regime classification
+    commutator_field,         # pairwise ||[B_i, B_j]||_F
+)
+
+# Holonomy: curvature with direction
+hr = holonomy_rotor(H_whitened, l=20, t=2)
+print(f"Scalar curvature: {hr.scalar_curvature}")
+print(f"Curvature plane: {hr.principal_plane}")
+
+# Nonseparability: total interactive computation
+ns = nonseparability_index(H_whitened)
+print(f"D(s) = {ns['D_total']:.2f}, regime = {ns['regime']}")
 ```
 
-## Two APIs
+### Capacity (`layer_time_ga.capacity`)
 
-| API | Import | Audience | Description |
-|-----|--------|----------|-------------|
-| **Student API** | `import ltg` | Practitioners, data scientists | One-line analysis, built-in plotting, diagnostic tools |
-| **Research API** | `from layer_time import LayerTimeAnalyzer` | Researchers | Full control, calibration, generation tracking, steering diagnostics |
+```python
+from layer_time_ga.capacity import ga_capacity_profile
 
-Both APIs share the same backend (`layer_time_geometry.py`).
-
-## Tutorial Notebooks
-
-Nine Jupyter notebooks in `tutorials/`, one per chapter of the companion book. Each is self-contained with explanations, runnable code, and visualisations.
-
-| Notebook | Topic | Key Concepts |
-|----------|-------|-------------|
-| `ch1_opening_the_black_box` | First analysis | Hidden states, layer-time grid, `ltg.analyse()` |
-| `ch2_whitening` | Standardisation | PCA whitening, covariance, explained variance |
-| `ch3_kernels` | Similarity | Layer kernel, temporal kernel, three computational phases |
-| `ch4_polar_decomposition` | Information flow | T = UP, condition number, effective rank |
-| `ch5_curvature` | Non-commutativity | Curvature maps, the negative result (curvature != reasoning) |
-| `ch6_experiments` | Experimental design | Factorial DOE, ANOVA, five key findings |
-| `ch7_dependency` | Layer contribution | Gradient dependency, entropy, length confound |
-| `ch8_reasoning_memory_control` | Reasoning-like computation | Operational definitions, functional memory, metric vs rotation control |
-| `ch9_diagnosing_failures` | Applications | Context-ignoring, hallucination risk, steering targets |
-
-## The Companion Book
-
-`monograph_undergrad.pdf` (105 pages) is a practical, hands-on companion that explains all concepts with intuition, code, and worked examples. No differential geometry or measure theory required -- just linear algebra and basic calculus.
-
-The book includes three appendices for readers who need background:
-
-| Appendix | Topic | Contents |
-|----------|-------|----------|
-| **A** | Neural Networks & Transformers | Linear models, gradient descent, CNNs/RNNs, full transformer architecture |
-| **B** | GPT & Large Language Models | Complete pipeline from tokenization to decoding, training, scaling |
-| **C** | Linear Algebra | Vectors, eigenvalues, SVD, PCA, polar decomposition, and every other LA tool used in the text |
-
-The LaTeX source (`monograph_undergrad.tex`) is included for reference.
-
-This book accompanies the research monograph: *Layer-Time Geometry of Transformer Computation: Kernels, Operators, and Dependency in Language Models* (Sudjianto and Zhang, 2026).
-
-## Key Findings
-
-Results from controlled experiments across three models (Qwen2.5-7B, DeepSeek-R1-Distill-Qwen-7B, Qwen2.5-32B) with 290 prompts:
-
-| Finding | Details |
-|---------|---------|
-| **Curvature concentrates in final layers** | Universally replicated across all models and prompts |
-| **Curvature does NOT track reasoning depth** | Falsified by ANOVA -- no significant effect |
-| **Dependency tracks task type** | Better discriminator than curvature |
-| **Metric control dominates rotation control** | Eigenvalues of P matter more than direction of U |
-| **D_total is confounded with sequence length** | Always use normalised metrics (entropy, horizons) |
-
-## Project Structure
-
+cap = ga_capacity_profile(H_whitened, D_layer=dep.D_layer)
+print(f"Accumulated capacity: {cap.C_acc:.2f}")
+print(f"Effective capacity: {cap.C_eff:.2f}")
 ```
-layer-time-geometry/
-  ltg.py                     # Student-friendly API
-  layer_time_geometry.py     # Core computational backend
-  layer_time/                # Research-grade package
-    __init__.py
-    analyzer.py              # LayerTimeAnalyzer class
-    results.py               # Result dataclasses
-    plotting.py              # Visualisation functions
-    _compat.py               # Device detection
-  tutorials/                 # 9 Jupyter notebooks
-  tests/                     # Test suite
-  monograph_undergrad.pdf    # Companion book (105 pages, 3 appendices)
-  monograph_undergrad.tex    # LaTeX source
-  pyproject.toml             # Package configuration
+
+## The Key Mapping
+
+| Matrix Operation | GA Equivalent | What GA Adds |
+|-----------------|--------------|-------------|
+| Dot product a^T b | Inner product a · b | Same |
+| Skew-symmetric A | Bivector B | Principal plane decomposition |
+| Orthogonal U ∈ SO(k) | Rotor R = exp(−B/2) | Explicit plane + angle |
+| Polar decomp T = UP | Versor decomp T = RP | Grade-2 × grade-0 separation |
+| ‖U − I‖_F | Rotor angle θ | Plus: which plane |
+| ‖[A_i, A_j]‖_F | ‖[B_i, B_j]‖ | Plus: decompose into planes |
+| ‖Ω − I‖_F | Holonomy rotor | Plus: curvature direction |
+| — | Cayley bivector | Magnitude + direction of context influence |
+| — | Binet–Cauchy cosine | Oriented alignment (detects causal inversions) |
+| — | Nonseparability index | Total interactive computation (single scalar) |
+
+## Running the Tutorials
+
+```bash
+pip install -e ".[tutorials]"
+cd tutorials_ga_learning
+jupyter lab
+```
+
+Start with `ch01_vectors_live_somewhere.ipynb` and work through sequentially.
+
+## Running Tests
+
+```bash
+pip install -e ".[dev]"
+pytest tests/ -v
 ```
 
 ## Citation
 
-If you use this library or book in your work, please cite:
+If you use this work, please cite:
 
-```bibtex
-@book{sudjianto2026layertime,
-  title     = {Layer--Time Geometry: How Language Models Process Information},
-  author    = {Sudjianto, Agus and Zhang, Aijun},
-  year      = {2026},
-  url       = {https://github.com/asudjianto-xml/layer-time-geometry}
-}
 ```
-
-For the research monograph:
-
-```bibtex
-@book{sudjianto2026layertimeformal,
-  title     = {Layer--Time Geometry of Transformer Computation: Kernels,
-               Operators, and Dependency in Language Models},
-  author    = {Sudjianto, Agus and Zhang, Aijun},
-  year      = {2026}
-}
+Sudjianto, A., Setiawan, S., and Zhang, A. (2026).
+Learning Geometric Algebra Through Transformer Geometry.
+https://github.com/asudjianto-xml/GA-Transformer-Geometry
 ```
-
-## Authors
-
-- **Agus Sudjianto** -- H2O.ai; Center for Trustworthy AI Through Model Risk Management, University of North Carolina Charlotte
-- **Aijun Zhang** -- Wells Fargo
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
+Apache 2.0. See [LICENSE](LICENSE).

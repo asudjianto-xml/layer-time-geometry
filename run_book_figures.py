@@ -203,8 +203,15 @@ H_ch1 = H_raw_ch1[1:].cpu().numpy()  # raw (unwhitened) to show convergence
 L_ch1, T_ch1, _ = H_ch1.shape
 print(f"Ch1 grid: {L_ch1} layers x {T_ch1} tokens")
 
-# Also run the standard analysis for later chapters
-result = ltg_ga.analyse("The capital of France is", model=model)
+# Standard analysis for later chapters.
+# Use a prompt with enough tokens (≥20) so that the layer operator
+# decomposition is well-determined; with T tokens, the effective
+# rank of the joint subspace is ~2T but only T equations constrain
+# the operator, so very short prompts give degenerate singular values.
+result = ltg_ga.analyse(
+    "The Eiffel Tower is a wrought iron lattice tower on the Champ de Mars in Paris France",
+    model=model,
+)
 
 fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 for ax, layer_idx, title in zip(axes, [1, L_ch1-2],
@@ -294,17 +301,23 @@ ax.grid(True, alpha=0.3)
 savefig('ch06_rotor_angles.pdf')
 
 # Grade-0 vs grade-2
+# Use only meaningful singular values to avoid rank-deficiency artifacts.
+# With T tokens the joint subspace is at most 2T-dimensional; singular
+# values near zero are padding, not genuine stretch.  We threshold at 1%
+# of the largest singular value and measure ||sv_eff - 1||_2.
 grade0 = []
 grade2 = []
 for vd in rf.decompositions:
-    P = vd.metric
-    grade0.append(np.linalg.norm(P - np.eye(P.shape[0]), 'fro'))
+    sv = vd.singular_values
+    sv_thresh = 0.01 * sv[0] if len(sv) > 0 else 0.0
+    sv_eff = sv[sv > sv_thresh]
+    grade0.append(float(np.linalg.norm(sv_eff - 1.0)))
     grade2.append(vd.bivector.norm)
 
 fig, ax = plt.subplots(figsize=(9, 4))
 layers = np.arange(len(grade0))
 w = 0.35
-ax.bar(layers - w/2, grade0, w, label='Grade-0 $\\|P - I\\|_F$', color='#1D6A6A')
+ax.bar(layers - w/2, grade0, w, label='Grade-0 $\\|\\sigma - 1\\|$', color='#1D6A6A')
 ax.bar(layers + w/2, grade2, w, label='Grade-2 $\\|B\\|_F$', color='#5B2C8B')
 ax.set_xlabel('Layer transition', fontsize=11)
 ax.set_ylabel('Frobenius norm', fontsize=11)
@@ -353,7 +366,10 @@ for i in range(n):
         sim_mat[i, j] = num / den
 
 fig, ax = plt.subplots(figsize=(7, 6))
-im = ax.imshow(sim_mat, cmap='RdYlBu_r', vmin=-1, vmax=1)
+# Use data-driven range so near-zero structure is visible
+off_diag = sim_mat[~np.eye(n, dtype=bool)]
+vmax = max(abs(off_diag.min()), abs(off_diag.max()))
+im = ax.imshow(sim_mat, cmap='PuOr_r', vmin=-vmax, vmax=vmax)
 ax.set_xlabel('Layer', fontsize=11)
 ax.set_ylabel('Layer', fontsize=11)
 ax.set_title('Bivector Similarity Between Layers', fontsize=12)
@@ -363,34 +379,55 @@ savefig('ch07_plane_similarity.pdf')
 # ── Chapter 8: Eigenvalue spectra ─────────────────────────────
 section("Chapter 8: Eigenvalue Spectra")
 
+# Filter to well-determined singular values only
+SV_THRESH = 1e-3
+
 fig, axes = plt.subplots(1, 3, figsize=(14, 4))
 for ax, idx, label in zip(axes, [0, len(rf.decompositions)//2, -1],
                           ['Early', 'Middle', 'Late']):
     vd = rf.decompositions[idx]
     sv = np.sort(vd.singular_values)[::-1]
-    ax.bar(range(min(50, len(sv))), sv[:50], width=1.0, color='#1D6A6A')
+    sv_good = sv[sv > SV_THRESH * sv[0]]
+    kappa_eff = sv_good[0] / sv_good[-1]
+    ax.bar(range(len(sv_good)), sv_good, width=1.0, color='#1D6A6A')
     ax.axhline(y=1.0, color='red', linestyle='--', alpha=0.5, label='Identity')
-    ax.set_title(f'{label} (layer {vd.layer_index}, $\\kappa$={vd.condition_number:.0f})', fontsize=11)
-    ax.set_xlabel('Direction', fontsize=10)
-    ax.set_ylabel('Eigenvalue', fontsize=10)
+    ax.set_title(f'{label} (layer {vd.layer_index}, '
+                 f'$\\kappa$={kappa_eff:.1f}, r={len(sv_good)})', fontsize=11)
+    ax.set_xlabel('Rank index $i$', fontsize=10)
+    ax.set_ylabel('Singular value', fontsize=10)
     ax.legend(fontsize=9)
 plt.tight_layout()
 savefig('ch08_eigenvalue_spectra.pdf')
+print(f"  Ch8 eigenvalue spectra: well-determined dims = "
+      f"{[np.sum(np.sort(vd.singular_values)[::-1] > SV_THRESH * np.max(vd.singular_values)) for vd in rf.decompositions]}")
 
-# Condition number + effective rank
+# Condition number + effective rank (well-determined only)
+kappas_eff = []
+eranks_eff = []
+for vd in rf.decompositions:
+    sv = np.sort(vd.singular_values)[::-1]
+    sv_good = sv[sv > SV_THRESH * sv[0]]
+    kappas_eff.append(sv_good[0] / sv_good[-1])
+    p = sv_good / sv_good.sum()
+    eranks_eff.append(np.exp(-np.sum(p * np.log(p + 1e-30))))
+kappas_eff = np.array(kappas_eff)
+eranks_eff = np.array(eranks_eff)
+
 fig, ax1 = plt.subplots(figsize=(9, 4))
-ax1.plot(range(len(cond_numbers)), cond_numbers, color='#AA3377', linewidth=2, label='$\\kappa$')
+ax1.plot(range(len(kappas_eff)), kappas_eff, color='#AA3377', linewidth=2, label='$\\kappa$')
 ax1.set_xlabel('Layer transition', fontsize=11)
 ax1.set_ylabel('Condition number $\\kappa$', color='#AA3377', fontsize=11)
 ax1.tick_params(axis='y', labelcolor='#AA3377')
 ax2 = ax1.twinx()
-ax2.plot(range(len(eranks)), eranks, color='#66CCEE', linewidth=2, linestyle='--', label='erank')
+ax2.plot(range(len(eranks_eff)), eranks_eff, color='#66CCEE', linewidth=2, linestyle='--', label='erank')
 ax2.set_ylabel('Effective rank', color='#66CCEE', fontsize=11)
 ax2.tick_params(axis='y', labelcolor='#66CCEE')
 fig.legend(loc='upper left', bbox_to_anchor=(0.12, 0.95), fontsize=10)
-ax1.set_title('Metric Selectivity Across Layers', fontsize=12)
+ax1.set_title('Metric Selectivity Across Layers (well-determined directions)', fontsize=12)
 ax1.grid(True, alpha=0.3)
 savefig('ch08_kappa_erank.pdf')
+print(f"  Ch8 kappa range: [{kappas_eff.min():.1f}, {kappas_eff.max():.1f}]")
+print(f"  Ch8 erank range: [{eranks_eff.min():.1f}, {eranks_eff.max():.1f}]")
 
 # ── Chapter 9: Commutator heatmap from transformer ───────────
 section("Chapter 9: Commutator Heatmap")
