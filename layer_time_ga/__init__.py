@@ -78,6 +78,27 @@ from .generation import (
     whiten_frontier,
     compute_frontier_ga,
     frontier_holonomy,
+    FrontierGradeProfile,
+    frontier_grade_profile,
+    FrontierCapacity,
+    frontier_capacity,
+    frontier_principal_planes,
+    FrontierQualityScores,
+    frontier_quality_scores,
+    OnlineScoreTrace,
+    online_quality_scores,
+    frontier_bccos,
+    RepetitionDetection,
+    detect_repetition_online,
+    detect_repetition_string,
+    frontier_steering_target,
+)
+
+from .steering import (
+    SteeringSpec,
+    FrontierPerturbationHook,
+    SteeringResult,
+    generate_with_steering,
 )
 
 __all__ = [
@@ -130,4 +151,25 @@ __all__ = [
     "whiten_frontier",
     "compute_frontier_ga",
     "frontier_holonomy",
+    # Frontier capacity (Ch16)
+    "FrontierGradeProfile",
+    "frontier_grade_profile",
+    "FrontierCapacity",
+    "frontier_capacity",
+    "frontier_principal_planes",
+    "FrontierQualityScores",
+    "frontier_quality_scores",
+    # Prediction and intervention (Ch17)
+    "OnlineScoreTrace",
+    "online_quality_scores",
+    "frontier_bccos",
+    "RepetitionDetection",
+    "detect_repetition_online",
+    "detect_repetition_string",
+    "frontier_steering_target",
+    # Steering (Ch17)
+    "SteeringSpec",
+    "FrontierPerturbationHook",
+    "SteeringResult",
+    "generate_with_steering",
 ]
