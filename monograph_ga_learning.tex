@@ -5442,10 +5442,31 @@ Dependency $D_l$ &
 
 \subsection{Three mechanistic insights from GA}
 
+We illustrate each insight using the three standard prompts on
+Qwen2.5-7B ($k = 256$): Retrieval (19~tokens), Reasoning
+(29~tokens), and Adversarial (18~tokens).
+Figure~\ref{fig:mech-interp} shows the composite GA mechanistic
+profile.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{figures_ga_learning/ch16_mech_interp_3prompts.pdf}
+\caption{GA mechanistic profile for three prompt types (Qwen2.5-7B,
+  $k = 256$).  Green/blue/orange shading marks the early, middle,
+  and late phases.
+  (a)~Rotation angle: Reasoning rotates more overall;
+  all three show the three-phase structure.
+  (b)~Commutator norm: the peak layer shifts with prompt type,
+  indicating different loci of cross-layer interaction.
+  (c)~Effective work $D_l \times \theta^{(l)}$: the mechanistic
+  bottleneck is concentrated in the first few layers for Retrieval
+  but spreads deeper for Reasoning.}
+\label{fig:mech-interp}
+\end{figure}
+
 \paragraph{Insight 1: The three-phase structure reveals functional
 stages.}
-The rotor angle profile (Chapter~\ref{chap:rotors},
-Figure~\ref{fig:rotor-field}) consistently shows three phases
+The rotor angle profile (panel~(a)) consistently shows three phases
 across all prompts and models studied:
 \begin{enumerate}[nosep]
 \item \textbf{Early layers} ($l \lesssim L/4$): large rotation
@@ -5462,14 +5483,81 @@ This is a \emph{mechanistic} decomposition of the forward pass: each
 phase has a distinct geometric signature that is visible without
 any task-specific supervision.
 
+Figure~\ref{fig:mech-phases} and Table~\ref{tab:mech-phases}
+quantify the per-phase statistics.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\textwidth]{figures_ga_learning/ch16_mech_interp_phases_3prompts.pdf}
+\caption{Per-phase comparison of rotation angle and metric selectivity
+  across the three prompt types (Qwen2.5-7B).  Reasoning shows
+  uniformly higher rotation angles; Adversarial shows the lowest
+  early-phase angles.}
+\label{fig:mech-phases}
+\end{figure}
+
+\begin{table}[ht]
+\centering\small
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{@{}l C{1.5cm} C{1.5cm} C{1.5cm} C{1.5cm} C{1.5cm} C{2.2cm}@{}}
+\toprule
+\rowcolor{Navy!15}
+\textbf{Prompt} &
+  $\bar\theta_{\text{early}}$ &
+  $\bar\theta_{\text{mid}}$ &
+  $\bar\theta_{\text{late}}$ &
+  $C_{\mathrm{acc}}$ &
+  Peak $[B,B']$ &
+  Top-3 eff.\ work \\
+\midrule
+Retrieval   & 7.54 & 8.29 & 7.86 & 585 & L1  & 0, 1, 2 \\
+Reasoning   & 9.83 & 9.39 & 10.43 & 659 & L4  & 0, 1, 4 \\
+Adversarial & 7.31 & 8.24 & 7.68 & 613 & L3  & 0, 3, 4 \\
+\bottomrule
+\end{tabular}
+\caption{GA mechanistic fingerprint for three prompt types
+  (Qwen2.5-7B, $k = 256$).  $\bar\theta$: mean rotation angle
+  (rad) in each phase.  $C_{\mathrm{acc}}$: accumulated
+  non-commutativity.  Peak~$[B,B']$: layer transition with the
+  largest commutator norm.  Top-3 eff.\ work: the three layer
+  transitions with the highest $D_l \times \theta^{(l)}$.}
+\label{tab:mech-phases}
+\end{table}
+
+\begin{finding}
+\textbf{Prompt-dependent mechanistic fingerprint} (Qwen2.5-7B,
+3~prompts).
+\begin{itemize}[nosep]
+\item \textbf{Reasoning} has the highest rotation angles in all
+  three phases ($\bar\theta_{\text{late}} = 10.43$ vs.\
+  $7.86$/$7.68$) and the highest accumulated capacity
+  ($C_{\mathrm{acc}} = 659$).  More computation is needed: the model
+  rotates more aggressively and the rotation planes are less
+  commutative.
+\item \textbf{Adversarial} shows the lowest early-phase rotation
+  ($\bar\theta_{\text{early}} = 7.31$) but a peak commutator at
+  layer~3, suggesting the model's refusal mechanism engages in the
+  first few layers before the representation stabilises.
+\item \textbf{Retrieval} concentrates effective work in the first
+  three layers (0, 1, 2), consistent with early factual look-up
+  followed by relatively passive propagation through deeper layers.
+\end{itemize}
+\end{finding}
+
 \paragraph{Insight 2: Commutators identify non-trivially interacting
 layers.}
-When the commutator $\|[B^{(l)}, B^{(l+1)}]\|_F$ is large, the two
-layers perform rotations in genuinely different planes --- their
-effects cannot be disentangled by reordering.  This is a geometric
-signature of \emph{cross-layer information mixing}: the computation
-at layer $l+1$ depends on the specific representation produced by
-layer $l$, not just its magnitude.
+When the commutator $\|[B^{(l)}, B^{(l+1)}]\|_F$ is large
+(panel~(b)), the two layers perform rotations in genuinely different
+planes --- their effects cannot be disentangled by reordering.
+This is a geometric signature of \emph{cross-layer information
+mixing}: the computation at layer $l+1$ depends on the specific
+representation produced by layer $l$, not just its magnitude.
+
+The peak commutator layer shifts with prompt type: L1 for Retrieval,
+L4 for Reasoning, L3 for Adversarial.  This shift is mechanistically
+informative --- it tells us \emph{where} in the network the
+computation requires non-commutative sequential processing, and that
+location depends on the semantic nature of the input.
 
 Conversely, small commutators indicate that adjacent layers rotate in
 nearly the same plane and could, in principle, be composed into a
@@ -5479,13 +5567,20 @@ computational power.
 
 \paragraph{Insight 3: Dependency-weighted bivectors locate the
 mechanistic bottleneck.}
-The effective work $D_l \times \theta^{(l)}$
-(Chapter~\ref{chap:dependency}) identifies layers where large
+The effective work $D_l \times \theta^{(l)}$ (panel~(c),
+Chapter~\ref{chap:dependency}) identifies layers where large
 rotations coincide with high gradient-based dependency.  These are
 the \emph{mechanistic bottlenecks}: layers where the output is most
 sensitive to the specific rotation being performed.  Intervening at
 these layers (amplifying, suppressing, or redirecting the rotation)
 has the greatest downstream effect.
+
+The top-3 effective work layers are \{0, 1, 2\} for Retrieval
+(early concentration), \{0, 1, 4\} for Reasoning (extending deeper),
+and \{0, 3, 4\} for Adversarial (skipping the initial layers).
+This matches the intuition that retrieval is a shallow look-up,
+reasoning requires deeper sequential processing, and adversarial
+prompts trigger an early intervention mechanism.
 
 \subsection{Orthogonality blindness: when geometry explains failure}
 
@@ -5531,6 +5626,57 @@ the computation itself: which planes rotate, which features amplify,
 where non-commutativity forces sequential processing, and where the
 output is most sensitive.
 \end{keyidea}
+
+\subsection{Code: computing the mechanistic profile}
+
+The following code computes the full mechanistic fingerprint for a
+single prompt.  It extracts the three-phase rotation angles,
+commutator norms, and effective work in a few lines:
+
+\begin{lstlisting}[language=Python]
+import ltg_ga, numpy as np
+
+model  = ltg_ga.load_model("Qwen/Qwen2.5-7B")
+result = ltg_ga.analyse(prompt, model=model)
+rf     = result.rotor_field
+
+# --- Three-phase rotation angles ---
+angles = rf.angles
+L      = len(angles)
+early  = np.mean(angles[:L//4])
+mid    = np.mean(angles[L//4:3*L//4])
+late   = np.mean(angles[3*L//4:])
+
+# --- Commutator norms ---
+bivs = rf.bivectors
+comm_norms = [
+    np.linalg.norm(
+        bivs[i].matrix @ bivs[i+1].matrix
+      - bivs[i+1].matrix @ bivs[i].matrix, 'fro')
+    for i in range(len(bivs) - 1)]
+
+# --- Effective work ---
+dep      = result.dependency_profile
+eff_work = dep[:len(angles)] * angles
+\end{lstlisting}
+
+\begin{tryit}
+\textbf{Exercises.}
+\begin{enumerate}[nosep]
+\item Run the mechanistic profile on two prompts of your own
+  choice --- one simple (e.g., a greeting) and one complex (e.g., a
+  multi-step math word problem).  Compare the three-phase
+  structure: does the complex prompt show higher rotation angles?
+  Where does the peak commutator fall?
+\item Identify the three layers with the highest effective work for
+  each prompt.  Are they the same layers, or does the bottleneck
+  shift?  What does the shift tell you about where the model
+  concentrates its computation?
+\item Plot the commutator norm profile for your complex prompt.
+  Are there pairs of adjacent layers with near-zero commutators?
+  These are candidates for layer merging or pruning.
+\end{enumerate}
+\end{tryit}
 
 % ────────────────────────────────────────────────────────────────────
 \section{Application 2: Does the model use context?}
