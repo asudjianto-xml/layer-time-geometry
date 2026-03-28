@@ -4868,13 +4868,13 @@ the previous frontier column ($s-1$) and the current one ($s$):
 
 Each layer transition in this mini-grid defines one plaquette.
 The holonomy rotor around each plaquette gives the
-\textbf{frontier curvature} $\kappa^{(l)}_s$.
+\textbf{frontier curvature} $\mathcal{K}^{(l)}_s$.
 
 \begin{figure}[ht]
 \centering
 \includegraphics[width=\linewidth]{figures_ga_learning/ch15_frontier_holonomy_3prompts.pdf}
 \caption{\textbf{Frontier holonomy heatmaps.}
-Scalar curvature $\kappa^{(l)}_s$ at frontier plaquettes
+Scalar curvature $\mathcal{K}^{(l)}_s$ at frontier plaquettes
 (layers $\times$ decode steps).  The Retrieval prompt shows
 uniformly high curvature.  The Reasoning prompt has lower but
 more structured curvature.  The Adversarial prompt shows
@@ -5053,8 +5053,8 @@ Commutator &
   $[\bivec{l}, \bivec{l+1}]$ (layer--layer) &
   $[A^{(l)}_s, A^{(l)}_{s-1}]$ (step--step) \\
 Holonomy &
-  $\kappa^{(l)}_t$ on fixed grid &
-  $\kappa^{(l)}_s$ at expanding frontier \\
+  $\mathcal{K}^{(l)}_t$ on fixed grid &
+  $\mathcal{K}^{(l)}_s$ at expanding frontier \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -5110,6 +5110,655 @@ and computing frontier holonomy.
   model (e.g., Qwen2.5-1.5B).  Does the smaller model show
   higher frontier curvature, lower, or simply different spatial
   patterns?
+\end{enumerate}
+\end{tryit}
+
+
+% ══════════════════════════════════════════════════════════════════════════════
+\chapter{Capacity and Quality at the Decode Frontier}
+\label{chap:frontier-capacity}
+% ══════════════════════════════════════════════════════════════════════════════
+
+\begin{whycare}
+Chapter~\ref{chap:frontier} described the frontier in terms of
+angles, bivectors, commutators, and curvature --- all
+\emph{descriptive} quantities.  They tell us \emph{what} happens
+geometrically at each decode step.
+But they do not tell us \emph{why} some generations are coherent
+and others collapse.
+This chapter brings the \textbf{capacity} and \textbf{quality}
+diagnostics from Part~\ref{part:curvature} to the frontier,
+providing the tools to distinguish healthy generation from
+degenerate generation on purely geometric grounds.
+\end{whycare}
+
+
+% ── 16.1 ─────────────────────────────────────────────────────────────────────
+\section{Why descriptive geometry is not enough}
+\label{sec:cap-motivation}
+
+Chapter~\ref{chap:frontier} established three qualitative
+regimes: Retrieval (stable frontier), Reasoning (drifting planes),
+and Adversarial (periodic orbit).  All three peak at layer~25
+and have similar frontier angle ranges.  The descriptive quantities
+alone cannot answer:
+
+\begin{enumerate}[nosep]
+\item How much \textbf{computational capacity} does the model use
+  at each decode step?
+\item Is that capacity distributed across many layers or
+  concentrated in a few?
+\item Does capacity grow, plateau, or cycle during generation?
+\item Can we detect repetition collapse from capacity alone,
+  without looking at the tokens?
+\end{enumerate}
+
+These are the questions that capacity, grade decomposition, and
+quality scores will answer.
+
+\begin{transformer}
+In Part~\ref{part:curvature}, Chapters~\ref{chap:capacity}
+and~\ref{chap:dependency} defined capacity $C_{\mathrm{acc}}$ as
+the accumulated pairwise non-commutativity of bivector generators
+across layers.  That was a single number per prompt.  At the
+frontier, we compute $C_{\mathrm{acc}}(s)$ at every decode step,
+giving a \emph{capacity time series} that tracks how the model's
+computational investment evolves during generation.
+\end{transformer}
+
+
+% ── 16.2 ─────────────────────────────────────────────────────────────────────
+\section{Grade decomposition at the frontier}
+\label{sec:cap-grade}
+
+Before measuring capacity, we first ask: at each layer transition,
+how much of the transformation is \textbf{rotation} (grade-2)
+versus \textbf{stretching} (grade-0)?
+
+Recall from Chapter~\ref{chap:versor} that the versor decomposition
+$T = RP$ splits a layer operator into a rotor $R$ and a metric
+factor $P$.  At the frontier, we approximate this with the
+\textbf{directional flow ratio}:
+\[
+  \boxed{%
+    \rho^{(l)}_s
+    = \frac{\|A^{(l)}_s\|_F}{\|S^{(l)}_s\|_F + \epsilon}
+  }
+\]
+
+where $S$ and $A$ are the symmetric and skew-symmetric parts of
+the transition operator $M^{(l)}_s = \hat{H}^{(l+1)}_s
+\bigl(\hat{H}^{(l)}_s\bigr)^\top / \|\hat{H}^{(l)}_s\|^2$.
+
+When $\rho \gg 1$, the layer is rotation-dominated; when
+$\rho \ll 1$, it is stretching-dominated.
+
+\paragraph{What the data shows.}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures_ga_learning/ch16_grade_ratio_3prompts.pdf}
+\caption{\textbf{Directional flow ratio heatmaps}
+($\rho^{(l)}_s$, layers $\times$ decode steps).
+Warm colours indicate rotation-dominated transitions; cool colours
+indicate stretching-dominated ones.
+All three prompts show a consistent layer profile: early and
+late layers are more rotation-dominated, while middle layers
+have lower flow ratios.}
+\label{fig:grade-ratio}
+\end{figure}
+
+\begin{finding}
+Mean flow ratios: $0.43$ (Retrieval), $0.31$ (Reasoning), $0.40$
+(Adversarial).  All are below~1, meaning frontier transitions are
+predominantly metric-driven (stretching/compression) rather than
+rotation-driven.
+
+\textbf{Interpretation.}
+The Reasoning prompt has the lowest flow ratio, consistent with its
+lower frontier angles from Chapter~\ref{chap:frontier}.  The model
+applies smaller, more metric-dominated transformations when reasoning
+through a logical chain.
+The Retrieval prompt has the highest flow ratio, indicating more
+rotational activity during factual retrieval.
+\end{finding}
+
+\begin{gabox}
+\textbf{Grade decomposition and the versor.}
+The flow ratio $\rho$ is a lightweight proxy for the full versor
+decomposition $T = RP$.  The grade-0 norm $\|S\|$ corresponds to
+the metric factor $P$; the grade-2 norm $\|A\|$ corresponds to the
+rotor $R$.  At the frontier, where we process $\sim\!26 \times 51$
+transitions, the proxy avoids the costly polar decomposition and
+matrix logarithm while preserving the essential grade
+structure.
+\end{gabox}
+
+
+% ── 16.3 ─────────────────────────────────────────────────────────────────────
+\section{Frontier capacity: accumulated non-commutativity}
+\label{sec:cap-frontier}
+
+With a Cayley bivector $A^{(l)}_s$ at every layer transition
+and decode step (Chapter~\ref{chap:frontier}), we define the
+\textbf{frontier capacity} at step~$s$:
+
+\[
+  \boxed{%
+    C_{\mathrm{acc}}(s)
+    = \sum_{i < j} \bigl\|[A^{(i)}_s,\, A^{(j)}_s]\bigr\|_F
+  }
+\]
+
+This is the decode-step analogue of the static
+$C_{\mathrm{acc}}$ from Chapter~\ref{chap:capacity}: the
+accumulated pairwise non-commutativity of all layer bivectors at a
+single decode step.  A high $C_{\mathrm{acc}}(s)$ means the model
+uses many geometrically distinct rotation planes across layers at
+step~$s$; a low value means layers are approximately co-planar.
+
+\paragraph{Incremental capacity.}
+The step-to-step change $\Delta C(s) = C_{\mathrm{acc}}(s) -
+C_{\mathrm{acc}}(s-1)$ measures how much the model's geometric
+complexity changes with each new token.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures_ga_learning/ch16_frontier_capacity_3prompts.pdf}
+\caption{\textbf{Frontier capacity} $C_{\mathrm{acc}}(s)$ across
+decode steps.  Retrieval has the highest mean capacity ($23.1$);
+Reasoning has the lowest ($13.1$); Adversarial starts high but
+trends downward as repetition sets in.}
+\label{fig:frontier-capacity}
+\end{figure}
+
+\begin{finding}
+The three prompts show qualitatively different capacity dynamics:
+
+\begin{itemize}[nosep]
+\item \textbf{Retrieval} ($\bar{C} = 23.1$):
+  high and roughly stable --- the model maintains a rich geometric
+  palette as it retrieves factual content.
+\item \textbf{Reasoning} ($\bar{C} = 13.1$):
+  lower capacity, reflecting fewer geometrically distinct planes
+  during deductive reasoning.  The model uses a simpler rotation
+  structure.
+\item \textbf{Adversarial} ($\bar{C} = 21.0$, trending down):
+  starts at retrieval-level capacity but decays as the model
+  enters repetition.  The declining $C_{\mathrm{acc}}(s)$ signals
+  that the model is \emph{losing} geometric complexity ---
+  collapsing into fewer distinct planes.
+\end{itemize}
+\end{finding}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures_ga_learning/ch16_delta_capacity_3prompts.pdf}
+\caption{\textbf{Incremental capacity} $\Delta C(s)$ at each
+decode step, annotated with generated tokens.
+Positive spikes indicate steps where the model recruits new
+geometric planes; negative spikes indicate simplification.
+The Adversarial prompt shows periodic oscillations matching
+its 9-token repetition cycle.}
+\label{fig:delta-capacity}
+\end{figure}
+
+\begin{analogy}
+Think of an orchestra.  Capacity is the number of
+different instruments playing at once.  Retrieval is a full
+orchestra maintaining rich instrumentation.  Reasoning is a
+string quartet --- fewer instruments, but each one essential.
+Repetition collapse is the orchestra gradually reducing to a
+single instrument repeating the same phrase.
+\end{analogy}
+
+
+% ── 16.4 ─────────────────────────────────────────────────────────────────────
+\section{Effective rank of frontier capacity}
+\label{sec:cap-erank}
+
+$C_{\mathrm{acc}}(s)$ measures the \emph{total} non-commutativity
+but not how it is \emph{distributed} across layer pairs.
+To measure this, define the \textbf{effective rank}:
+
+\[
+  \boxed{%
+    \nu(s) = \exp\!\Bigl(-\sum_l p_l(s) \log p_l(s)\Bigr)
+  }
+\]
+
+where $p_l(s) = c_l(s) / \sum_{l'} c_{l'}(s)$ and $c_l(s)$ is
+layer~$l$'s contribution to $C_{\mathrm{acc}}(s)$ (sum of its
+row in the pairwise commutator matrix, excluding the diagonal).
+
+The effective rank $\nu(s)$ ranges from~1 (all capacity in one
+layer) to $n_{\text{trans}}$ (uniformly distributed).  It is the
+exponential of the Shannon entropy of the layer contribution
+distribution.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures_ga_learning/ch16_effective_rank_3prompts.pdf}
+\caption{\textbf{Effective rank} $\nu(s)$ of frontier capacity.
+All three prompts have high effective rank ($\approx 24\text{--}25$
+out of 26~transitions), meaning capacity is distributed across
+almost all layers rather than concentrated.}
+\label{fig:erank}
+\end{figure}
+
+\begin{finding}
+Effective rank is high for all prompts: $24.6$ (Retrieval), $24.8$
+(Reasoning), $25.0$ (Adversarial).  With 26 layer transitions,
+these values indicate near-uniform distribution of capacity.
+
+\textbf{Interpretation.}
+Unlike the frontier angle (which peaks at layer~25), capacity is
+\emph{spread} across the full depth of the network.  No single
+layer dominates the non-commutativity budget.  This is consistent
+with the BCH perspective from Chapter~\ref{chap:commutators}:
+capacity arises from the interaction of many layers rotating in
+different planes, not from any one layer's rotation.
+\end{finding}
+
+\begin{keyidea}
+The effective rank $\nu$ complements $C_{\mathrm{acc}}$ in the
+same way that the condition number complements the singular-value
+sum.  Two models can have identical total capacity but very
+different effective ranks.  A model with $\nu \approx n$ uses
+all its layers for geometric computation; a model with
+$\nu \approx 1$ concentrates its budget in a single layer pair.
+For generation quality, high $\nu$ suggests robust,
+distributed computation that is harder to disrupt.
+\end{keyidea}
+
+
+% ── 16.5 ─────────────────────────────────────────────────────────────────────
+\section{Principal planes of frontier bivectors}
+\label{sec:cap-planes}
+
+Chapter~\ref{chap:frontier} measured plane drift via the Frobenius
+cosine of successive Cayley bivectors.  Here we go deeper: at
+selected layers, extract the \textbf{dominant eigenplane} of each
+Cayley bivector and track how that plane evolves across decode
+steps.
+
+For a skew-symmetric matrix $A$, the eigenvalues come in
+conjugate pairs $\pm i\sigma_j$.  The dominant pair defines the
+principal plane of rotation; we track its \textbf{stability} as the
+cosine between successive bivector matrices at each layer:
+\[
+  \text{similarity}(s)
+  = \frac{|\langle A^{(l)}_s, A^{(l)}_{s-1}\rangle_F|}
+         {\|A^{(l)}_s\|_F\;\|A^{(l)}_{s-1}\|_F}
+\]
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures_ga_learning/ch16_principal_planes_3prompts.pdf}
+\caption{\textbf{Principal plane stability} across decode steps
+at five selected layers.  Low similarity means the rotation plane
+changed between consecutive steps.  The Adversarial prompt shows
+periodic plane recurrence matching its 9-token cycle.}
+\label{fig:principal-planes}
+\end{figure}
+
+\begin{finding}
+Plane stability is generally low (below~0.5 at most layers),
+confirming Chapter~\ref{chap:frontier}'s finding that rotation
+planes are not preserved across decode steps.
+
+The Adversarial prompt is distinctive: its plane similarity shows
+periodic peaks, indicating the model returns to the \emph{same}
+set of rotation planes at corresponding positions within each
+repetition cycle.  This is the geometric fingerprint of a fixed
+orbit --- the same planes recur with 9-step periodicity.
+\end{finding}
+
+
+% ── 16.6 ─────────────────────────────────────────────────────────────────────
+\section{Curvature direction at the frontier}
+\label{sec:cap-curv-direction}
+
+Chapter~\ref{chap:frontier} computed scalar frontier curvature
+$\mathcal{K}^{(l)}_s$.  Scalar curvature answers \emph{how much} the
+grid is curved; it does not answer \emph{in which direction}.
+The full holonomy rotor (Chapter~\ref{chap:holonomy}) carries a
+bivector that names the curvature plane.
+
+Here we track the \textbf{curvature profile similarity}: at each
+decode step, the curvature across layers forms a vector
+$\mathcal{K}_s = [\mathcal{K}^{(1)}_s, \ldots, \mathcal{K}^{(L-1)}_s]$.  The
+cosine between successive profiles measures how stable the
+curvature \emph{pattern} is:
+\[
+  \text{curv\_sim}(s) = \frac{\mathcal{K}_s \cdot \mathcal{K}_{s-1}}
+  {\|\mathcal{K}_s\|\;\|\mathcal{K}_{s-1}\|}
+\]
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures_ga_learning/ch16_curvature_direction_3prompts.pdf}
+\caption{\textbf{Curvature profile similarity} across decode steps.
+High values indicate that the curvature is distributed across
+layers in the same pattern as the previous step.
+All three prompts show high similarity ($> 0.9$), meaning the
+curvature pattern is remarkably stable even as individual
+curvature values change.}
+\label{fig:curv-direction}
+\end{figure}
+
+\begin{finding}
+Curvature profile similarity is consistently high ($> 0.9$) for
+all three prompts.  This means:
+
+\begin{itemize}[nosep]
+\item The \emph{which-layers-are-curved} pattern is stable across
+  generation, even as the \emph{amount} of curvature varies.
+\item The model has a fixed ``curvature architecture'' --- certain
+  layers are always high-curvature and others always low ---
+  regardless of the specific content being generated.
+\item This stability justifies Chapter~\ref{chap:frontier}'s
+  finding that layer~25 is always the peak: the curvature pattern
+  is a structural property of the model, not a content-dependent
+  one.
+\end{itemize}
+\end{finding}
+
+
+% ── 16.7 ─────────────────────────────────────────────────────────────────────
+\section{Geometric quality scores}
+\label{sec:cap-quality}
+
+We now synthesize the frontier quantities into five
+\textbf{geometric quality scores} that characterise a generation
+without looking at the tokens:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}\small
+\begin{tabular}{@{}L{3cm} L{5cm} L{4cm}@{}}
+\toprule
+\textbf{Score} & \textbf{Definition} & \textbf{Interpretation} \\
+\midrule
+Capacity growth rate &
+  Slope of $C_{\mathrm{acc}}(s)$ over steps &
+  Positive = enriching; negative = simplifying \\
+Capacity periodicity &
+  Max autocorrelation of $\Delta C(s)$ for
+  lag $\in [2, 20]$ &
+  High ($> 0.4$) = periodic/repetition \\
+Erank trend &
+  Slope of $\nu(s)$ over steps &
+  Negative = capacity concentrating \\
+Plane diversity &
+  Mean plane drift from Ch.~\ref{chap:frontier} &
+  High = geometrically novel tokens \\
+Curvature accel. &
+  Mean $|\ddot{K}(s)|$ where
+  $K = \sum_l \mathcal{K}^{(l)}$ &
+  Zero = steady state (repetition) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures_ga_learning/ch16_quality_scores_3prompts.pdf}
+\caption{\textbf{Geometric quality scores} for the three prompts.
+The Adversarial prompt has the highest capacity periodicity
+($0.47$, exceeding the $0.4$ threshold), flagging it as
+repetitive without any string matching.
+Reasoning has the highest plane diversity ($0.72$).}
+\label{fig:quality-scores}
+\end{figure}
+
+\begin{finding}
+The quality scores for the three prompts:
+
+\medskip
+\begin{center}
+\renewcommand{\arraystretch}{1.3}\small
+\begin{tabular}{@{}l r r r@{}}
+\toprule
+\textbf{Score} & \textbf{Retrieval} & \textbf{Reasoning} &
+  \textbf{Adversarial} \\
+\midrule
+Cap.\ growth rate & $-0.12$ & $-0.01$ & $-0.16$ \\
+Cap.\ periodicity & $0.23$ & $0.26$ & $\mathbf{0.47}$ \\
+Erank trend ($\times 10^2$) & $0.28$ & $0.86$ & $0.76$ \\
+Plane diversity & $0.66$ & $\mathbf{0.72}$ & $0.68$ \\
+Curv.\ acceleration & $0.18$ & $0.14$ & $0.13$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+\textbf{Key observations:}
+
+\begin{itemize}[nosep]
+\item \textbf{Capacity periodicity} cleanly separates the
+  Adversarial prompt ($0.47$) from the non-repetitive prompts
+  ($0.23$, $0.26$).  A threshold of $0.4$ would correctly flag
+  only the repetitive generation.
+\item All three prompts have slightly \emph{negative} capacity
+  growth rates, suggesting that initial tokens require more
+  geometric complexity than later ones.
+\item Reasoning has the highest plane diversity ($0.72$),
+  consistent with each deductive step requiring a distinct
+  geometric direction.
+\end{itemize}
+\end{finding}
+
+\begin{keyidea}
+\textbf{Geometric repetition detection.}
+The capacity periodicity score provides a token-free method for
+detecting repetition collapse: compute $\Delta C(s)$ at each
+decode step, then check the autocorrelation.  If the
+maximum autocorrelation for any lag $P \in [2, 20]$ exceeds a
+threshold (e.g., $0.4$), flag the generation as repetitive.
+
+This criterion is:
+\begin{enumerate}[nosep]
+\item \textbf{Token-free:} it operates on the geometry, not the
+  output string.
+\item \textbf{Early:} it can detect periodicity after
+  $\sim\!2P$ steps, before the repetition becomes obvious in the
+  text.
+\item \textbf{Model-agnostic:} the same threshold works across
+  prompts because the geometry is normalised by the whitening
+  metric.
+\end{enumerate}
+\end{keyidea}
+
+
+% ── 16.8 ─────────────────────────────────────────────────────────────────────
+\section{Case study: the three prompts revisited}
+\label{sec:cap-case}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures_ga_learning/ch16_capacity_summary_3prompts.pdf}
+\caption{\textbf{Frontier capacity summary.}
+\textbf{(a)}~Accumulated capacity $C_{\mathrm{acc}}(s)$.
+\textbf{(b)}~Effective rank $\nu(s)$.
+\textbf{(c)}~Layer-averaged flow ratio.
+\textbf{(d)}~Cumulative capacity growth.
+The three prompts separate cleanly: Retrieval is high and stable,
+Reasoning is low and steady, Adversarial declines into periodic
+cycling.}
+\label{fig:capacity-summary}
+\end{figure}
+
+Combining all Chapter~16 diagnostics with the descriptive
+quantities from Chapter~\ref{chap:frontier}, the three prompts
+form three distinct geometric regimes:
+
+\begin{description}[nosep, leftmargin=1.2cm]
+\item[Retrieval] (\emph{rich, stable frontier}):
+  High capacity ($\bar{C} = 23.1$), high flow ratio ($\rho = 0.43$),
+  moderate plane diversity ($0.66$), low periodicity ($0.23$).
+  The model maintains a geometrically rich palette and uses it
+  steadily to retrieve factual content.
+
+\item[Reasoning] (\emph{lean, diversifying frontier}):
+  Low capacity ($\bar{C} = 13.1$), low flow ratio ($\rho = 0.31$),
+  highest plane diversity ($0.72$), rising effective rank.
+  The model uses fewer geometric resources but continuously
+  reorients --- each step in the deductive chain requires a new
+  direction.
+
+\item[Adversarial] (\emph{decaying, periodic frontier}):
+  Initially high capacity ($\bar{C} = 21.0$), declining over time,
+  highest periodicity ($0.47$).  The model starts with rich
+  geometry but collapses into a 9-step orbit, losing capacity and
+  recycling the same rotation planes.
+\end{description}
+
+\begin{pitfall}
+The quality scores developed here are validated on three prompts
+from one model (Qwen2.5-7B).  The specific thresholds (e.g.,
+$0.4$ for periodicity) may need calibration for different model
+families or generation strategies (e.g., beam search, nucleus
+sampling).  The \emph{geometric structure} of the scores ---
+capacity periodicity detecting repetition, plane diversity
+reflecting novelty --- should be robust, but the numerical
+cutoffs are empirical.
+\end{pitfall}
+
+
+% ── 16.9 ─────────────────────────────────────────────────────────────────────
+\section{Code: frontier capacity pipeline}
+\label{sec:cap-code}
+
+The following code builds on Chapter~\ref{chap:frontier}'s
+pipeline, adding the Chapter~16 computations:
+
+\begin{lstlisting}[caption={Frontier capacity pipeline}]
+from layer_time_ga import (
+    generate_with_frontier,
+    whiten_frontier,
+    compute_frontier_ga,
+    frontier_holonomy,
+    frontier_grade_profile,
+    frontier_capacity,
+    frontier_principal_planes,
+    frontier_quality_scores,
+)
+
+# ... (load model, generate, whiten as in Chapter 15) ...
+
+# Grade decomposition
+grade = frontier_grade_profile(result, skip_first=True)
+# grade.flow_ratio: (26, 51) directional flow ratio
+
+# Frontier capacity
+ga = compute_frontier_ga(result, skip_first=True)
+cap = frontier_capacity(ga)
+# cap.C_acc:  (51,) accumulated capacity per step
+# cap.erank:  (51,) effective rank per step
+# cap.delta_C: (50,) incremental capacity
+
+# Principal planes at selected layers
+planes = frontier_principal_planes(ga, n_planes=1)
+
+# Quality scores
+holo = frontier_holonomy(result, device="cuda")
+qs = frontier_quality_scores(ga, cap, holo)
+print(f"Periodicity: {qs.capacity_periodicity:.3f}")
+print(f"Repetition: {qs.capacity_periodicity > 0.4}")
+\end{lstlisting}
+
+\paragraph{Performance.}
+The capacity computation is dominated by the pairwise commutators:
+$O(n_{\text{trans}}^2 \cdot k^2)$ per step.  For $n = 26$
+transitions and $k = 256$, this is $\sim\!22$M operations per step,
+or $\sim\!1$B for 51 steps --- fast in numpy.
+The principal plane extraction (eigendecomposition of
+$256 \times 256$ skew-symmetric matrices) is the most expensive
+per-call operation but only runs at a few selected layers.
+The full Chapter~16 pipeline adds under 10~minutes to the
+Chapter~15 pipeline.
+
+
+% ── 16.10 ────────────────────────────────────────────────────────────────────
+\section{Summary and bridge to the next chapter}
+\label{sec:cap-summary}
+
+This chapter added a \textbf{diagnostic layer} on top of the
+descriptive frontier geometry from Chapter~\ref{chap:frontier}:
+
+\begin{center}
+\renewcommand{\arraystretch}{1.4}\small
+\begin{tabular}{@{}L{3.2cm} L{4.5cm} L{4.5cm}@{}}
+\toprule
+\textbf{Quantity} & \textbf{Static (Ch.\,11--12)} &
+  \textbf{Frontier (this chapter)} \\
+\midrule
+Capacity &
+  $C_{\mathrm{acc}}$, one scalar &
+  $C_{\mathrm{acc}}(s)$, time series \\
+Effective rank &
+  $\nu$, one scalar &
+  $\nu(s)$, time series \\
+Grade decomp. &
+  $\rho^{(l)}$, per layer &
+  $\rho^{(l)}_s$, per layer per step \\
+Quality score &
+  (not available) &
+  Five diagnostic scores per generation \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{keyidea}
+\textbf{Three levels of frontier analysis.}
+
+Chapters~\ref{chap:frontier} and~\ref{chap:frontier-capacity}
+provide three complementary levels:
+
+\begin{enumerate}[nosep]
+\item \textbf{Descriptive} (Ch.~\ref{chap:frontier}):
+  angle, bivector, commutator, drift, holonomy --- what happens at
+  each step.
+\item \textbf{Diagnostic} (this chapter):
+  capacity, effective rank, grade ratio, quality scores --- why
+  some generations are healthy and others collapse.
+\item \textbf{Predictive} (future work):
+  using capacity trends and periodicity to \emph{detect} and
+  potentially \emph{intervene} in generation failures before they
+  manifest in the output text.
+\end{enumerate}
+\end{keyidea}
+
+\begin{tryit}
+\textbf{Notebook: Chapter 16.}
+The companion notebook
+\texttt{ch16\_frontier\_capacity.ipynb} walks through the full
+capacity pipeline, from grade decomposition to quality scores.
+
+\medskip
+\textbf{Exercises.}
+
+\begin{enumerate}[nosep]
+\item Compute $C_{\mathrm{acc}}(s)$ for the Adversarial prompt
+  and fit a periodic model $C_{\mathrm{acc}}(s) \approx \alpha +
+  \beta \cos(2\pi s / P)$.  What period $P$ gives the best fit?
+  Does it match the 9-token repetition cycle?
+
+\item Run the quality score pipeline on a generation with
+  temperature~$> 0$ (e.g., temperature~$= 0.8$).  Does
+  sampling affect capacity periodicity?  Does it reduce or
+  increase effective rank?
+
+\item Implement an early stopping criterion: halt generation
+  when the capacity periodicity score computed on the last
+  $2P_{\max}$ steps exceeds~$0.4$.  Test on 5~different prompts.
+  How early can the detector identify repetition compared to a
+  string-matching detector?
+
+\item Compare the frontier capacity profile between Qwen2.5-7B and
+  a larger model (e.g., Qwen2.5-32B).  Does the larger model use
+  more capacity per step, or does it use similar capacity more
+  efficiently (higher effective rank)?
 \end{enumerate}
 \end{tryit}
 
