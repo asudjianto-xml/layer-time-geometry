@@ -177,7 +177,7 @@
   {\normalsize\itshape\color{DGray}
    A self-guided introduction to Geometric Algebra\\
    with language models as your laboratory}\\[30pt]
-  {\small\sffamily\color{DGray} Version: March 25, 2026}\\[20pt]
+  {\small\sffamily\color{DGray} Version: March 28, 2026}\\[20pt]
   {\small\sffamily\color{Blue}
    \href{https://github.com/asudjianto-xml/GA-Transformer-Geometry}%
    {github.com/asudjianto-xml/GA-Transformer-Geometry}}
@@ -192,7 +192,8 @@
 \subsection*{What this book is}
 
 This is a book about Geometric Algebra.  It teaches you a powerful
-mathematical framework --- Geometric Algebra (technically the Clifford algebra $\mathrm{Cl}(k,0)$, a notation we unpack in Chapter~4) ---
+mathematical framework --- Geometric Algebra (technically the Clifford
+algebra $\mathrm{Cl}(k,0)$, a notation we unpack in Chapter~4) ---
 through a concrete, fascinating application: understanding how large
 language models process information internally.
 
@@ -201,6 +202,14 @@ algebraic idea, develops it with small examples you can work by hand, and
 then immediately applies it to real data extracted from a transformer
 language model.  The transformer is your \emph{laboratory}: a place where
 abstract algebraic concepts become visible, measurable, and surprising.
+
+The book is organised in five parts.  Parts~I--III develop the
+\emph{static} GA toolkit: bivectors, rotors, curvature, and capacity
+for a fixed input.  Part~IV extends the analysis to \emph{generation},
+tracking how the model's internal geometry evolves as it produces text
+one token at a time.  Part~V brings everything together, applying GA to
+four practical problems: mechanistic interpretability, context-use
+detection, hallucination diagnosis, and plane-specific steering.
 
 \subsection*{Why transformers?}
 
@@ -217,7 +226,11 @@ Moreover, transformers are \emph{important}.  Understanding their internal
 computation is one of the central challenges in AI.  By learning GA
 through this lens, you gain two things at once: a deep understanding of
 a beautiful algebra, and a new way to see inside the models that are
-reshaping technology.
+reshaping technology.  And because transformers \emph{generate} text ---
+extending a sequence one token at a time --- their geometry is not
+static but \emph{evolving}.  Tracking how bivectors, curvature, and
+capacity change at the decode frontier connects GA to real-time
+questions about generation quality, hallucination, and control.
 
 \subsection*{What you need}
 
@@ -248,8 +261,12 @@ Each chapter follows the same pattern:
   explorations.
 \end{enumerate}
 
-The chapters build sequentially: each depends on the previous.  Read them
-in order the first time.  After that, use the chapters as reference.
+The chapters build sequentially: each depends on the previous.  Read
+them in order the first time.  Parts~I--III can be read independently
+of Part~IV if your interest is the static geometry.  Part~IV (the
+decode frontier) requires Parts~I--III but can be read before Part~V.
+Part~V draws on all preceding material.  After a first pass, use the
+chapters as reference.
 
 \subsection*{Three kinds of statement}
 
@@ -376,8 +393,8 @@ chapter.  Refer back to this page whenever you need orientation.
 \item \textbf{Versor decomposition} $T^{(l)} = \rotor{l}\,\metric{l}$
   (Chapter~\ref{chap:versor}).  \\
   Polar decomposition splits each transition into a rotor
-  $\rotor{l}$, an $r \times r$ rotation matrix (orthogonal with determinant $+1$, written $\mathrm{SO}(r)$ in group notation) (\emph{grade-2}: rotation), and a
-  symmetric factor $\metric{l}$ (\emph{grade-0}: stretching).
+  $\rotor{l}$, an $r \times r$ rotation matrix (orthogonal with determinant $+1$, written $\mathrm{SO}(r)$ in group notation) (even-grade; its generator $\bivec{l} = \log \rotor{l}$ is grade-2), and a
+  symmetric factor $\metric{l}$ (grade-0: stretching).
 
 \item \textbf{Bivector field} $\{\bivec{l}\}$
   (Chapter~\ref{chap:planes}).  \\
@@ -484,7 +501,7 @@ two-dimensional grid:
 \end{tikzpicture}
 \end{center}
 
-For the Qwen-2.5-7B model: $L = 28$ layers, $T$ depends on the prompt
+For the Qwen2.5-7B model: $L = 28$ layers, $T$ depends on the prompt
 length, and $p = 3584$ dimensions per hidden state.  That is
 $28 \times T$ vectors, each with 3584 components.
 
@@ -937,11 +954,11 @@ parts of the representation space, and the bivector tells you
 
 \section{Grade decomposition}
 
-Any square matrix $M$ can be decomposed into its grade-0 and grade-2
-parts:
+Any square matrix $M$ can be decomposed into symmetric and
+skew-symmetric parts:
 \[
-  M = \underbrace{\frac{M + M^\top}{2}}_{\text{grade-0 (symmetric)}}
-    + \underbrace{\frac{M - M^\top}{2}}_{\text{grade-2 (skew-symmetric)}}
+  M = \underbrace{\frac{M + M^\top}{2}}_{\text{symmetric (grade-0 + grade-4 + $\cdots$)}}
+    + \underbrace{\frac{M - M^\top}{2}}_{\text{skew-symmetric (grade-2)}}
 \]
 
 This is the simplest possible grade decomposition.  The symmetric part
@@ -1373,7 +1390,7 @@ After whitening, the hidden states live in $\mathbb{R}^k$ with
 $g_{ij} = \delta_{ij}$.  The algebra $\mathrm{Cl}(k, 0)$ is now valid.
 
 \begin{lstlisting}[caption={Whitening constructs the orthonormal frame}]
-import layer_time_geometry as core
+import layer_time_ga as core
 
 H_raw = core.extract_hidden_states(model.hf_model, model.tokenizer,
                                     text, model.device)
@@ -1529,8 +1546,8 @@ combined plane.
 \begin{lstlisting}[caption={Composing and inverting rotors}]
 from layer_time_ga.algebra import rotor_compose, rotor_inverse
 
-R2 = rotor_from_orthogonal(expm(0.15 * (rng.standard_normal((8,8))
-     - rng.standard_normal((8,8)).T) / 2))
+X = rng.standard_normal((8, 8))
+R2 = rotor_from_orthogonal(expm(0.15 * (X - X.T) / 2))
 
 R12 = rotor_compose(R, R2)
 print(f"Composed angle: {R12.angle:.4f}")
@@ -1553,7 +1570,7 @@ Given an orthogonal matrix $U \in \mathrm{SO}(k)$ with no eigenvalue
 equal to $-1$ (an eigenvalue of $-1$ means a $180^\circ$ rotation in
 some plane --- the Cayley map's one blind spot), the skew-symmetric matrix
 \[
-  A = (U - I)(U + I)^{-1}
+  A = (I - U)(I + U)^{-1}
 \]
 is the \textbf{Cayley bivector} of $U$.  Its principal planes are the
 rotation planes of $U$, and the corresponding entries encode
@@ -1608,9 +1625,10 @@ The unit bivector $\hat{B}$ squares to $-I$ (restricted to its plane),
 so it behaves like the imaginary unit $i$.  Euler's formula
 $e^{-i\theta} = \cos\theta - i\sin\theta$ therefore generalises:
 $\exp(-\hat{B}\theta) = I\cos\theta - \hat{B}\sin\theta$.
-The expression above is the matrix form of the rotor
-$R = \exp(-\hat{B}\theta/2)$, expanded via this generalised Euler's
-formula.
+The expression above is the \emph{rotation matrix} (the grade-preserving
+orthogonal map), not the rotor itself.  The corresponding rotor is
+$R = \exp(-\hat{B}\theta/2)$; its action on a vector~$v$ via the
+sandwich product $RvR^{-1}$ reproduces the rotation matrix above.
 \end{gabox}
 
 \paragraph{Why three methods?}
@@ -1618,7 +1636,7 @@ You now have three ways to extract a rotation's bivector generator:
 \begin{enumerate}[nosep]
 \item \textbf{Matrix logarithm}: $U \xrightarrow{\log} B\theta$.  Exact,
   handles multiple planes, but requires an $O(k^3)$ matrix logarithm.
-\item \textbf{Cayley map}: $A = (U-I)(U+I)^{-1}$.  Algebraic (no
+\item \textbf{Cayley map}: $A = (I-U)(I+U)^{-1}$.  Algebraic (no
   transcendental functions), returns $B\tan(\theta/2)$.  Fails if $U$
   has eigenvalue $-1$ (i.e., a $180^\circ$ rotation).
 \item \textbf{Rodrigues}: direct from two vectors, exact for any angle,
@@ -1742,11 +1760,13 @@ mixes tokens differently at each position, so the \emph{effective}
 transformation depends on~$t$.  The rotor field makes this explicit:
 
 \[
-  H^{(l+1)}(t) \;=\; R^{(l)}(t)\;\; H^{(l)}(t)
+  H^{(l+1)}(t) \;=\; T^{(l)}(t)\;\; H^{(l)}(t)
+  \;=\; R^{(l)}(t)\; P^{(l)}(t)\;\; H^{(l)}(t)
 \]
 
-where $R^{(l)}(t)$ is the rotor at position~$t$ in layer~$l$.  The
-layer is not ``a rotation'' --- it is a \textbf{field of rotors}, one
+where $T^{(l)}(t) = R^{(l)}(t)\,P^{(l)}(t)$ is the full versor
+(rotor~$\times$~metric factor) at position~$t$ in layer~$l$.  The
+layer is not ``a rotation'' --- it is a \textbf{field of versors}, one
 per token position.
 
 % ── Figure: Transformer layer as a rotor field ─────────────────────
@@ -1986,7 +2006,7 @@ the correct prediction.
 
 To quantify the grade balance at each layer, we define:
 \[
-  \mathcal{R}^{(l)} = \frac{\|A^{(l)}\|_F}{\|S^{(l)}\|_F + \epsilon}
+  \rho^{(l)} = \frac{\|A^{(l)}\|_F}{\|S^{(l)}\|_F + \epsilon}
 \]
 where $A^{(l)} = \frac{1}{2}(T^{(l)} - T^{(l)\top})$ is the
 \textbf{antisymmetric part} (grade-2, bivector) and
@@ -1995,16 +2015,16 @@ $S^{(l)} = \frac{1}{2}(T^{(l)} + T^{(l)\top})$ is the
 operator.
 
 \begin{keyidea}
-The directional flow ratio $\mathcal{R}^{(l)}$ is the grade-2--to--grade-0
+The directional flow ratio $\rho^{(l)}$ is the grade-2--to--grade-0
 ratio at each layer.
 \begin{itemize}[nosep]
-\item $\mathcal{R} \gg 1$: rotation dominates (changing direction).
-\item $\mathcal{R} \ll 1$: stretching dominates (changing scale).
-\item $\mathcal{R} \approx 1$: both contribute equally.
+\item $\rho \gg 1$: rotation dominates (changing direction).
+\item $\rho \ll 1$: stretching dominates (changing scale).
+\item $\rho \approx 1$: both contribute equally.
 \end{itemize}
-Plotting $\mathcal{R}^{(l)}$ across layers makes the three-phase
+Plotting $\rho^{(l)}$ across layers makes the three-phase
 structure visible in a single curve.  Typically,
-$\mathcal{R} \sim 0.03$--$0.06$ overall (metric-dominated), but the
+$\rho \sim 0.03$--$0.06$ overall (metric-dominated), but the
 ratio is higher in early layers and drops in late layers.
 \end{keyidea}
 
@@ -2576,7 +2596,7 @@ print(f"Antisymmetric: {np.allclose(comm.matrix, -comm.matrix.T)}")
 comm_planes = comm.principal_planes(n_planes=2)
 for i, p in enumerate(comm_planes):
     print(f"  Plane {i}: angle = {p['angle']:.4f}")
-print("This directional info is invisible to ||[A_i,A_j]||_F!")
+print("This directional info is invisible to ||[B_i,B_j]||_F!")
 \end{lstlisting}
 
 \section{The commutator field}
@@ -2995,21 +3015,24 @@ sum it up:
 \begin{gabox}
 \textbf{Nonseparability index.}
 \[
-  \mathcal{D}(s) = \sum_{l=0}^{L-2}\sum_{t=0}^{T-2}
-    \|\Omega^{(l,t)}\|_F
+  \mathcal{D} = \sum_{l=0}^{L-2}\sum_{t=0}^{T-2}
+    \|R_{\mathrm{loop}}^{(l,t)} - I\|_F
 \]
-where $\Omega^{(l,t)} = R_{\mathrm{loop}}^{(l,t)} - I$ is the
-holonomy operator at plaquette $(l, t)$.
+Each term $\|R_{\mathrm{loop}} - I\|_F$ is the scalar curvature
+(deviation from identity) at plaquette $(l, t)$.  Note: this uses
+$R_{\mathrm{loop}} - I$, not the curvature bivector
+$\Omega = \log R_{\mathrm{loop}}$ from above.  For small curvature
+the two are approximately equal, but $R - I$ is cheaper to compute.
 \end{gabox}
 
-Think of $\mathcal{D}(s)$ as a ``total curvature budget.''  If
-$\mathcal{D}(s) = 0$, the hidden-state field is \emph{separable}: the
+Think of $\mathcal{D}$ as a ``total curvature budget.''  If
+$\mathcal{D} = 0$, the hidden-state field is \emph{separable}: the
 layer transformations and token transformations are independent, and the
-model is doing a simple lookup.  In other words, `separable' means you could factor the full transformation as a product of a layer-only part and a token-only part, with no interaction --- like a function $f(x,y) = g(x) \cdot h(y)$.  If $\mathcal{D}(s) > 0$, the model is
+model is doing a simple lookup.  In other words, `separable' means you could factor the full transformation as a product of a layer-only part and a token-only part, with no interaction --- like a function $f(x,y) = g(x) \cdot h(y)$.  If $\mathcal{D} > 0$, the model is
 performing genuinely interactive computation --- the kind where \emph{which
 token you are} changes \emph{what the layer does}.
 
-The normalised version $\bar{\mathcal{D}}(s) = \mathcal{D}(s) /
+The normalised version $\bar{\mathcal{D}} = \mathcal{D} /
 ((L-1)(T-1))$ is the mean curvature per plaquette, which is comparable
 across prompts of different lengths.
 
@@ -3116,7 +3139,7 @@ the model's computation is structured.
 The \textbf{accumulated capacity} sums commutator norms across adjacent
 layers:
 \[
-  C_{\mathrm{acc}} = \sum_{l=1}^{L-1} \|[\bivec{l}, \bivec{l+1}]\|_F
+  C_{\mathrm{acc}} = \sum_{l=0}^{L-3} \|[\bivec{l}, \bivec{l+1}]\|_F
 \]
 
 Each term measures how much layers $l$ and $l+1$ fail to commute.  If
@@ -3128,7 +3151,7 @@ Higher values mean more complex geometric transformation.
 Not all non-commutativity matters for the output.  Weighting by
 gradient-based dependency $D_l$ gives the \textbf{effective capacity}:
 \[
-  C_{\mathrm{eff}} = \sum_{l} D_l \cdot \|[\bivec{l}, \bivec{l+1}]\|_F
+  C_{\mathrm{eff}} = \sum_{l=0}^{L-3} D_l \cdot \|[\bivec{l}, \bivec{l+1}]\|_F
 \]
 
 This focuses on the non-commutativity that actually drives the model's
@@ -3213,26 +3236,11 @@ generalises beyond this model pair is an open question.
 \end{enumerate}
 
 \medskip
-\textbf{Sample output} (Qwen2.5-7B, three prompt types):
-
-\smallskip
-\begin{center}
-\renewcommand{\arraystretch}{1.2}\small
-\begin{tabular}{@{} l r r @{}}
-\toprule
-\textbf{Prompt} & $C_{\mathrm{acc}}$ & \textbf{Peak layer} \\
-\midrule
-Retrieval   & 584.9 & 1 \\
-Reasoning   & 658.5 & 4 \\
-Adversarial & 613.4 & 3 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\medskip
-\textbf{What this tells you.}
-Reasoning requires the highest accumulated capacity (${\sim}13\%$ more
-than retrieval), reflecting the deeper non-commutative processing
+\textbf{Expected output.}
+Your values should match the Finding above: $C_{\mathrm{acc}}$ of
+584.9 (Retrieval), 658.5 (Reasoning), 613.4 (Adversarial), with peak
+layers at 1, 4, 3 respectively.  The ${\sim}13\%$ gap between
+reasoning and retrieval reflects the deeper non-commutative processing
 seen in Chapter~\ref{chap:commutators}.  The peak-capacity layer
 shifts with task type --- retrieval peaks at layer~1 (early lookup),
 adversarial at layer~3 (mid-early re-routing), and reasoning at
@@ -3381,38 +3389,18 @@ understand a failure, look at what these planes are doing.
 \end{enumerate}
 
 \medskip
-\textbf{Sample output} (Qwen2.5-7B, three prompt types):
-
-\smallskip
-\begin{center}
-\renewcommand{\arraystretch}{1.2}\small
-\begin{tabular}{@{} l r l @{}}
-\toprule
-\textbf{Prompt} & $D_{\mathrm{total}}$ & \textbf{Top-3 eff.\ work layers} \\
-\midrule
-Retrieval   & 1.98 & 0, 1, 2 \\
-Reasoning   & 0.87 & 0, 1, 4 \\
-Adversarial & 4.01 & 0, 3, 4 \\
-\bottomrule
-\end{tabular}
-\end{center}
-
-\medskip
-\textbf{What this tells you.}
-The adversarial prompt has the highest total dependency
-($D_{\mathrm{total}} = 4.01$), more than double retrieval (1.98) and
-quadruple reasoning (0.87) --- the model is most gradient-sensitive to
-the jailbreak prompt it must refuse.  All three prompts place layer~0
-in the top-3 effective-work layers, confirming that the earliest
-geometric reorientation is universally important.  But the remaining
-top layers shift: retrieval concentrates in layers~0--2 (fast lookup),
-reasoning redistributes to layer~4 (deeper deliberation), and
-adversarial skips to layers~3--4 (mid-depth re-routing).  The
-three-panel figure below makes this per-layer shift visually apparent.
+\textbf{Expected output.}
+Your values should match the Finding above: $D_{\mathrm{total}}$ of
+1.98 (Retrieval), 0.87 (Reasoning), 4.01 (Adversarial), with top-3
+effective-work layers at \{0,1,2\}, \{0,1,4\}, \{0,3,4\} respectively.
+The adversarial prompt's $D_{\mathrm{total}}$ is more than double
+retrieval and quadruple reasoning --- the model is most
+gradient-sensitive to the prompt it must refuse.
+The three-panel figure below makes this per-layer shift visually apparent.
 
 \begin{center}
 \includegraphics[width=0.95\linewidth]{figures_ga_learning/ch12_dependency_3prompts.pdf}
-\captionof{figure}{Effective work $D_l \times \theta_l$ for three prompt types.
+\captionof{figure}{Effective work $D_l \times \theta^{(l)}$ for three prompt types.
 Each panel shows dependency (bars) and rotor angle (line) on twin axes, with
 top-3 effective-work layers highlighted.  Retrieval (left) concentrates in
 layers~0--2; reasoning (centre) redistributes to layer~4; adversarial (right)
@@ -3443,7 +3431,7 @@ anything about how models actually produce text.
 \end{whycare}
 
 
-% ── 15.1 ─────────────────────────────────────────────────────────────────────
+% ── 13.1 ─────────────────────────────────────────────────────────────────────
 \section{Why the static view is incomplete}
 \label{sec:frontier-static}
 
@@ -3476,7 +3464,7 @@ of frontier columns.
 \end{transformer}
 
 
-% ── 15.2 ─────────────────────────────────────────────────────────────────────
+% ── 13.2 ─────────────────────────────────────────────────────────────────────
 \section{The decode-step index}
 \label{sec:frontier-index}
 
@@ -3509,7 +3497,7 @@ created.
 \end{gabox}
 
 
-% ── 15.3 ─────────────────────────────────────────────────────────────────────
+% ── 13.3 ─────────────────────────────────────────────────────────────────────
 \section{Frontier rotation angle}
 \label{sec:frontier-angle}
 
@@ -3586,7 +3574,7 @@ reveals how fast and where the river is deepening.
 \end{analogy}
 
 
-% ── 15.4 ─────────────────────────────────────────────────────────────────────
+% ── 13.4 ─────────────────────────────────────────────────────────────────────
 \section{Cayley bivector at the frontier}
 \label{sec:frontier-cayley}
 
@@ -3652,7 +3640,7 @@ not reconstructing the full layer operator.
 \end{pitfall}
 
 
-% ── 15.5 ─────────────────────────────────────────────────────────────────────
+% ── 13.5 ─────────────────────────────────────────────────────────────────────
 \section{Incremental bivector and commutator spikes}
 \label{sec:frontier-commutator}
 
@@ -3719,7 +3707,7 @@ rotate in a new direction.
 \end{finding}
 
 
-% ── 15.6 ─────────────────────────────────────────────────────────────────────
+% ── 13.6 ─────────────────────────────────────────────────────────────────────
 \section{Plane drift: stability of the rotation plane}
 \label{sec:frontier-drift}
 
@@ -3779,7 +3767,7 @@ when the tilt happens abruptly.
 \end{analogy}
 
 
-% ── 15.7 ─────────────────────────────────────────────────────────────────────
+% ── 13.7 ─────────────────────────────────────────────────────────────────────
 \section{Gauge consistency: the fixed whitening metric}
 \label{sec:frontier-gauge}
 
@@ -3827,7 +3815,7 @@ research direction.
 \end{pitfall}
 
 
-% ── 15.8 ─────────────────────────────────────────────────────────────────────
+% ── 13.8 ─────────────────────────────────────────────────────────────────────
 \section{Frontier holonomy}
 \label{sec:frontier-holonomy}
 
@@ -3884,7 +3872,7 @@ a steady staircase pattern reflecting its periodic cycle.}
 \end{figure}
 
 
-% ── 15.9 ─────────────────────────────────────────────────────────────────────
+% ── 13.9 ─────────────────────────────────────────────────────────────────────
 \section{Repetition collapse: a geometric signature}
 \label{sec:frontier-repetition}
 
@@ -3945,7 +3933,7 @@ any fixed period~$P$.
 \end{keyidea}
 
 
-% ── 15.10 ────────────────────────────────────────────────────────────────────
+% ── 13.10 ────────────────────────────────────────────────────────────────────
 \section{Code: running frontier analysis}
 \label{sec:frontier-code}
 
@@ -3953,6 +3941,7 @@ The \texttt{layer\_time\_ga.generation} module implements all
 frontier computations.  Here is the complete pipeline:
 
 \begin{lstlisting}[caption={Frontier analysis pipeline}]
+import torch
 from layer_time_ga import (
     generate_with_frontier,
     whiten_frontier,
@@ -4003,7 +3992,7 @@ For Qwen2.5-7B generating 50 tokens, the full pipeline
 two minutes on a single GPU.
 
 
-% ── 15.11 ────────────────────────────────────────────────────────────────────
+% ── 13.11 ────────────────────────────────────────────────────────────────────
 \section{Summary and bridge to the next chapter}
 \label{sec:frontier-summary}
 
@@ -4057,7 +4046,7 @@ geometries:
 \end{keyidea}
 
 \begin{tryit}
-\textbf{Notebook: Chapter 15.}
+\textbf{Notebook: Chapter~\ref{chap:frontier}.}
 The companion notebook
 \texttt{ch15\_decode\_frontier.ipynb} walks through the full
 pipeline: generating with frontier extraction, computing angles and
@@ -4110,7 +4099,7 @@ degenerate generation on purely geometric grounds.
 \end{whycare}
 
 
-% ── 16.1 ─────────────────────────────────────────────────────────────────────
+% ── 14.1 ─────────────────────────────────────────────────────────────────────
 \section{Why descriptive geometry is not enough}
 \label{sec:cap-motivation}
 
@@ -4144,7 +4133,7 @@ computational investment evolves during generation.
 \end{transformer}
 
 
-% ── 16.2 ─────────────────────────────────────────────────────────────────────
+% ── 14.2 ─────────────────────────────────────────────────────────────────────
 \section{Grade decomposition at the frontier}
 \label{sec:cap-grade}
 
@@ -4212,7 +4201,7 @@ structure.
 \end{gabox}
 
 
-% ── 16.3 ─────────────────────────────────────────────────────────────────────
+% ── 14.3 ─────────────────────────────────────────────────────────────────────
 \section{Frontier capacity: accumulated non-commutativity}
 \label{sec:cap-frontier}
 
@@ -4290,7 +4279,7 @@ single instrument repeating the same phrase.
 \end{analogy}
 
 
-% ── 16.4 ─────────────────────────────────────────────────────────────────────
+% ── 14.4 ─────────────────────────────────────────────────────────────────────
 \section{Effective rank of frontier capacity}
 \label{sec:cap-erank}
 
@@ -4349,7 +4338,7 @@ distributed computation that is harder to disrupt.
 \end{keyidea}
 
 
-% ── 16.5 ─────────────────────────────────────────────────────────────────────
+% ── 14.5 ─────────────────────────────────────────────────────────────────────
 \section{Principal planes of frontier bivectors}
 \label{sec:cap-planes}
 
@@ -4376,7 +4365,7 @@ cosine between successive bivector matrices at each layer:
 at five selected layers.  Low similarity means the rotation plane
 changed between consecutive steps.  The Adversarial prompt shows
 periodic plane recurrence matching its 9-token cycle.}
-\label{fig:principal-planes}
+\label{fig:principal-planes-frontier}
 \end{figure}
 
 \begin{finding}
@@ -4392,7 +4381,7 @@ orbit --- the same planes recur with 9-step periodicity.
 \end{finding}
 
 
-% ── 16.6 ─────────────────────────────────────────────────────────────────────
+% ── 14.6 ─────────────────────────────────────────────────────────────────────
 \section{Curvature direction at the frontier}
 \label{sec:cap-curv-direction}
 
@@ -4442,7 +4431,7 @@ all three prompts.  This means:
 \end{finding}
 
 
-% ── 16.7 ─────────────────────────────────────────────────────────────────────
+% ── 14.7 ─────────────────────────────────────────────────────────────────────
 \section{Geometric quality scores}
 \label{sec:cap-quality}
 
@@ -4547,7 +4536,7 @@ This criterion is:
 \end{keyidea}
 
 
-% ── 16.8 ─────────────────────────────────────────────────────────────────────
+% ── 14.8 ─────────────────────────────────────────────────────────────────────
 \section{Case study: the three prompts revisited}
 \label{sec:cap-case}
 
@@ -4565,7 +4554,7 @@ cycling.}
 \label{fig:capacity-summary}
 \end{figure}
 
-Combining all Chapter~16 diagnostics with the descriptive
+Combining all Chapter~\ref{chap:frontier-capacity} diagnostics with the descriptive
 quantities from Chapter~\ref{chap:frontier}, the three prompts
 form three distinct geometric regimes:
 
@@ -4602,12 +4591,12 @@ cutoffs are empirical.
 \end{pitfall}
 
 
-% ── 16.9 ─────────────────────────────────────────────────────────────────────
+% ── 14.9 ─────────────────────────────────────────────────────────────────────
 \section{Code: frontier capacity pipeline}
 \label{sec:cap-code}
 
 The following code builds on Chapter~\ref{chap:frontier}'s
-pipeline, adding the Chapter~16 computations:
+pipeline, adding the Chapter~\ref{chap:frontier-capacity} computations:
 
 \begin{lstlisting}[caption={Frontier capacity pipeline}]
 from layer_time_ga import (
@@ -4652,11 +4641,11 @@ or $\sim\!1$B for 51 steps --- fast in numpy.
 The principal plane extraction (eigendecomposition of
 $256 \times 256$ skew-symmetric matrices) is the most expensive
 per-call operation but only runs at a few selected layers.
-The full Chapter~16 pipeline adds under 10~minutes to the
+The full Chapter~\ref{chap:frontier-capacity} pipeline adds under 10~minutes to the
 Chapter~15 pipeline.
 
 
-% ── 16.10 ────────────────────────────────────────────────────────────────────
+% ── 14.10 ────────────────────────────────────────────────────────────────────
 \section{Summary and bridge to the next chapter}
 \label{sec:cap-summary}
 
@@ -4699,7 +4688,7 @@ provide three complementary levels:
 \item \textbf{Diagnostic} (this chapter):
   capacity, effective rank, grade ratio, quality scores --- why
   some generations are healthy and others collapse.
-\item \textbf{Predictive} (future work):
+\item \textbf{Predictive} (Ch.~\ref{chap:frontier-prediction}):
   using capacity trends and periodicity to \emph{detect} and
   potentially \emph{intervene} in generation failures before they
   manifest in the output text.
@@ -4707,7 +4696,7 @@ provide three complementary levels:
 \end{keyidea}
 
 \begin{tryit}
-\textbf{Notebook: Chapter 16.}
+\textbf{Notebook: Chapter~\ref{chap:frontier-capacity}.}
 The companion notebook
 \texttt{ch16\_frontier\_capacity.ipynb} walks through the full
 capacity pipeline, from grade decomposition to quality scores.
@@ -4759,7 +4748,7 @@ frontier framework.
 \end{whycare}
 
 
-% ── 17.1 ─────────────────────────────────────────────────────────────────────
+% ── 15.1 ─────────────────────────────────────────────────────────────────────
 \section{From post-hoc to online}
 \label{sec:pred-online}
 
@@ -4813,7 +4802,7 @@ scan), adding negligible overhead to the generation loop.
 \end{keyidea}
 
 
-% ── 17.2 ─────────────────────────────────────────────────────────────────────
+% ── 15.2 ─────────────────────────────────────────────────────────────────────
 \section{Early detection of repetition collapse}
 \label{sec:pred-detection}
 
@@ -4894,14 +4883,13 @@ The geometric detector trades speed for generality.
 \end{pitfall}
 
 
-% ── 17.3 ─────────────────────────────────────────────────────────────────────
-\section{Binet-Cauchy cosine at the frontier}
+% ── 15.3 ─────────────────────────────────────────────────────────────────────
+\section{Binet--Cauchy cosine at the frontier}
 \label{sec:pred-bccos}
 
-Chapter~\ref{chap:applications} introduced the
-\textbf{Binet-Cauchy cosine} (BCcos) as a signed measure of
-bivector plane alignment.  We now apply it at the frontier for the
-first time.
+The \textbf{Binet--Cauchy cosine} (BCcos) is a signed measure of
+bivector plane alignment (see Section~\ref{sec:hallucination} for a
+full development).  We apply it here at the frontier.
 
 At each layer transition~$l$ and decode step~$s$, we measure
 whether the frontier's step-to-step trajectory
@@ -4911,7 +4899,7 @@ prompt's reference direction (the last two prompt tokens):
   \mathrm{BCcos}^{(l)}_s
   = \frac{\det S}
          {\|\hat{u}_{s-1} \op \hat{u}_s\| \;
-          \|c_{\text{pre}} \op c_{\text{post}}\|}
+          \|c_{\text{pre}} \op c_{\text{post}}\| + \epsilon}
 \]
 
 where $S$ is the $2 \times 2$ Gram matrix of inner products between
@@ -4920,7 +4908,7 @@ the trajectory pair and the reference pair.
 \begin{figure}[ht]
 \centering
 \includegraphics[width=\linewidth]{figures_ga_learning/ch17_bccos_frontier_3prompts.pdf}
-\caption{\textbf{Binet-Cauchy cosine at the frontier.}
+\caption{\textbf{Binet--Cauchy cosine at the frontier.}
 Layer-averaged BCcos across decode steps.  All three prompts show
 values near zero, indicating that the frontier trajectory is
 essentially orthogonal to the prompt's reference direction.}
@@ -4949,7 +4937,7 @@ already capture.
 \end{finding}
 
 
-% ── 17.4 ─────────────────────────────────────────────────────────────────────
+% ── 15.4 ─────────────────────────────────────────────────────────────────────
 \section{Steering targets at the frontier}
 \label{sec:pred-targets}
 
@@ -4994,7 +4982,7 @@ decode step.
 \end{finding}
 
 
-% ── 17.5 ─────────────────────────────────────────────────────────────────────
+% ── 15.5 ─────────────────────────────────────────────────────────────────────
 \section{Breaking the orbit: a steering experiment}
 \label{sec:pred-steering}
 
@@ -5057,7 +5045,7 @@ research question.
 \end{keyidea}
 
 
-% ── 17.6 ─────────────────────────────────────────────────────────────────────
+% ── 15.6 ─────────────────────────────────────────────────────────────────────
 \section{The frontier as a causal dynamical system}
 \label{sec:pred-dynamics}
 
@@ -5133,7 +5121,7 @@ the frontier dynamics of Part~V is the \emph{evolution equation}.
 \end{gabox}
 
 
-% ── 17.7 ─────────────────────────────────────────────────────────────────────
+% ── 15.7 ─────────────────────────────────────────────────────────────────────
 \section{Open questions and limitations}
 \label{sec:pred-open}
 
@@ -5182,7 +5170,7 @@ Several directions remain open:
 \end{enumerate}
 
 
-% ── 17.8 ─────────────────────────────────────────────────────────────────────
+% ── 15.8 ─────────────────────────────────────────────────────────────────────
 \section{Summary: the three levels of frontier analysis}
 \label{sec:pred-summary}
 
@@ -5273,7 +5261,7 @@ if det.detected:
 \end{lstlisting}
 
 \begin{tryit}
-\textbf{Notebook: Chapter 17.}
+\textbf{Notebook: Chapter~\ref{chap:frontier-prediction}.}
 The companion notebook
 \texttt{ch17\_frontier\_prediction.ipynb} demonstrates the full
 prediction and intervention pipeline.
@@ -5363,24 +5351,24 @@ The versor decomposition fills this gap.
 Recall from Chapter~\ref{chap:versor} that each layer transition
 decomposes as
 \[
-  T^{(l)} = R^{(l)} \cdot P^{(l)},
+  T^{(l)} = \rotor{l} \cdot \metric{l},
 \]
-where $R^{(l)}$ is the rotor (orthogonal factor) and $P^{(l)}$ is
+where $\rotor{l}$ is the rotor (orthogonal factor) and $\metric{l}$ is
 the metric deformation (symmetric positive-definite factor).  Each
 factor answers a different mechanistic question:
 
 \begin{gabox}
 \textbf{Two mechanistic components of a layer transition.}
 \begin{enumerate}[nosep]
-\item \textbf{Rotor $R^{(l)}$ (semantic redirection):} Which
+\item \textbf{Rotor $\rotor{l}$ (semantic redirection):} Which
   semantic directions are rotated into which others?  The bivector
-  generator $B^{(l)} = \log R^{(l)}$ identifies the \emph{plane} of
+  generator $\bivec{l} = \log \rotor{l}$ identifies the \emph{plane} of
   rotation --- the pair of semantic dimensions being mixed --- and the
-  rotation angle $\theta^{(l)} = \|B^{(l)}\|_F$ measures the magnitude
+  rotation angle $\theta^{(l)} = \|\bivec{l}\|_F$ measures the magnitude
   of the transformation.
-\item \textbf{Metric $P^{(l)}$ (energy reallocation):}  Which
+\item \textbf{Metric $\metric{l}$ (energy reallocation):}  Which
   features are amplified and which are suppressed?  The eigenvalues of
-  $P^{(l)}$ give the stretch spectrum: $\sigma_i > 1$ means
+  $\metric{l}$ give the stretch spectrum: $\sigma_i > 1$ means
   amplification along eigenvector $e_i$; $\sigma_i < 1$ means
   suppression.
 \end{enumerate}
@@ -5410,7 +5398,7 @@ interpretability counterparts.
 Rotation angle $\theta^{(l)}$ &
   How much semantic content changes at layer $l$ &
   \ref{chap:rotors} \\
-Bivector $B^{(l)}$ &
+Bivector $\bivec{l}$ &
   \emph{Which} semantic plane is rotated &
   \ref{chap:planes} \\
 Plane similarity &
@@ -5422,7 +5410,7 @@ Condition number $\kappa^{(l)}$ &
 Effective rank &
   Dimensionality of the active subspace &
   \ref{chap:frames} \\
-Commutator $[B^{(l)}, B^{(l+1)}]$ &
+Commutator $[\bivec{l}, \bivec{l+1}]$ &
   Non-commutativity: can layers be reordered? &
   \ref{chap:commutators} \\
 Holonomy $\Omega$ &
@@ -5546,7 +5534,7 @@ Adversarial & 7.31 & 8.24 & 7.68 & 613 & L3  & 0, 3, 4 \\
 
 \paragraph{Insight 2: Commutators identify non-trivially interacting
 layers.}
-When the commutator $\|[B^{(l)}, B^{(l+1)}]\|_F$ is large
+When the commutator $\|[\bivec{l}, \bivec{l+1}]\|_F$ is large
 (panel~(b)), the two layers perform rotations in genuinely different
 planes --- their effects cannot be disentangled by reordering.
 This is a geometric signature of \emph{cross-layer information
@@ -5732,11 +5720,14 @@ influence.
 Any skew-symmetric matrix can be identified with a bivector: its entries encode the coefficients of basis planes $e_i \wedge e_j$, exactly as introduced in Chapter~3.
 \end{gabox}
 
-The \textbf{steering magnitude} is the Frobenius norm:
+The \textbf{steering magnitude} is:
 \[
-  \tau = \|A\|_F = \tan(\theta/2), \qquad
+  \tau = \frac{\|A\|_F}{\sqrt{2}} = \tan(\theta/2), \qquad
   \theta = \arccos(u_\pi^\top v_q)
 \]
+The $\sqrt{2}$ arises because $A$ is a rank-2 skew-symmetric matrix
+with two nonzero singular values $\pm\tan(\theta/2)$, so
+$\|A\|_F = \sqrt{2}\,\tan(\theta/2)$.
 The map $\theta \mapsto \tan(\theta/2)$ sends
 $[0^\circ, 180^\circ)$ to $[0, \infty)$ and is approximately
 proportional to $\theta$ in the typical operating range
@@ -5746,7 +5737,7 @@ proportional to $\theta$ in the typical operating range
 \textbf{Three diagnostics from one object.}
 \begin{enumerate}[nosep]
 \item \textbf{Detection}: The magnitude
-  $\tau = \|A\|_F$ quantifies context influence.
+  $\tau = \|A\|_F / \sqrt{2}$ quantifies context influence.
   Small $\tau$ $\Rightarrow$ vibing.
 \item \textbf{Diagnosis}: The \emph{direction} of $A$
   specifies the semantic plane of rotation --- what kind of
@@ -5786,28 +5777,36 @@ The detection algorithm is:
 \item Extract $u_\pi = \text{LLM}(x)$ and
   $v_q = \text{LLM}(x \oplus c)$; $\ell_2$-normalise.
 \item Compute the Cayley bivector $A$ and its magnitude
-  $\tau = \|A\|_F$.
+  $\tau = \|A\|_F / \sqrt{2}$.
 \item If $\tau < \epsilon_{\text{vibe}}$ (default $0.05$),
   flag as vibing.
 \item (Optional) If a learned rotation $R$ is available, apply
   $R_\alpha = I + \alpha(R - I)$ to steer toward context-following.
 \end{enumerate}
 
-\begin{lstlisting}[caption={Context-ignoring detection via the Cayley bivector}]
+\begin{lstlisting}[caption={Context detection via Cayley bivector and curvature plane shift}]
+from layer_time_ga.algebra import cayley_bivector
+from layer_time_ga.curvature import holonomy_rotor
+
 r_with = ltg_ga.analyse(prompt_with_context, model=model)
 r_without = ltg_ga.analyse(prompt_without_context, model=model)
 
-# Compare curvature planes at the peak curvature layer
-from layer_time_ga.curvature import holonomy_rotor
+# --- Method 1: Cayley bivector magnitude (tau) ---
+# Compare last-token hidden states at each layer
+for l in range(r_with.H_whitened.shape[0]):
+    u = r_without.H_whitened[l, -1]
+    v = r_with.H_whitened[l, -1]
+    _, tau = cayley_bivector(u / np.linalg.norm(u),
+                             v / np.linalg.norm(v))
+    # tau >> 0.05 => model IS using context at this layer
 
+# --- Method 2: Curvature plane shift ---
 peak = r_with.curvature_by_layer.argmax()
 hr1 = holonomy_rotor(r_with.H_whitened, l=peak, t=0)
 hr2 = holonomy_rotor(r_without.H_whitened, l=peak, t=0)
-
-# Cosine similarity between curvature bivectors
 cos_sim = np.sum(hr1.bivector.matrix * hr2.bivector.matrix)
 cos_sim /= (hr1.bivector.norm * hr2.bivector.norm + 1e-12)
-# Low similarity => model IS using context (different curvature plane)
+# Low similarity => different curvature plane => using context
 \end{lstlisting}
 
 \subsection{Experiment: context detection on Qwen2.5-7B}
@@ -5820,7 +5819,7 @@ We run the Cayley bivector analysis on two prompts:
 \end{itemize}
 For each layer $l$, we extract the last-token hidden state from both
 runs, $\ell_2$-normalise, and compute the Cayley bivector $A^{(l)}$
-and its magnitude $\tau^{(l)} = \|A^{(l)}\|_F$.
+and its magnitude $\tau^{(l)} = \|A^{(l)}\|_F / \sqrt{2}$.
 
 \begin{center}
 \renewcommand{\arraystretch}{1.3}\small
@@ -5839,7 +5838,7 @@ and its magnitude $\tau^{(l)} = \|A^{(l)}\|_F$.
 \end{center}
 
 \begin{center}
-\includegraphics[width=0.8\linewidth]{figures_ga_learning/ch13_cayley_tau.pdf}
+\includegraphics[width=0.8\linewidth]{figures_ga_learning/ch16_cayley_tau.pdf}
 \captionof{figure}{Steering magnitude $\tau$ across layers.  The context
 shifts the representation most strongly at layer~18 ($\tau = 0.47$),
 well above the vibe threshold $\tau = 0.05$.  Layer~0 shows $\tau = 0$
@@ -5871,18 +5870,26 @@ summaries cannot provide --- only the bivector direction reveals it.
 
 \subsection{Two failure modes}
 
-Chain-of-thought prompting can fail in two geometrically distinct ways:
+Language model generation can fail in two geometrically distinct ways:
 
 \begin{enumerate}[nosep]
-\item \textbf{Genuine uncertainty (sometimes called \emph{aleatoric} confusion)}: The model generates multiple
-  reasoning paths that reach contradictory conclusions.  This is
-  visible as high variability in the bivector directions between
-  sampled chains.
-\item \textbf{Systematic hallucination (mode collapse)}: All paths
-  converge to the same incorrect conclusion with high confidence.
-  Entropy-based methods see low dispersion and miss this failure.
-  GA catches it through the \emph{plane structure} of the computation.
+\item \textbf{Genuine uncertainty}: The model lacks sufficient
+  information and its internal geometry reflects this --- curvature
+  planes vary incoherently across layers and tokens.  When multiple
+  reasoning chains are sampled, their bivector directions diverge.
+\item \textbf{Systematic hallucination}: The model generates
+  confidently but incorrectly.  Entropy-based methods see low
+  dispersion and miss this failure.  GA catches it through the
+  \emph{plane structure} of the computation: the model performs
+  substantial geometric work (high capacity) that the output does
+  not depend on (low dependency).
 \end{enumerate}
+
+The experiment below tests the second failure mode using a
+single-prompt comparison.  The bivector coherence diagnostic
+$\mathcal{C}$ (defined in the next subsection) targets the first
+mode and requires sampling multiple chains; we leave its empirical
+validation for future work.
 
 \subsection{The bivector coherence diagnostic}
 
@@ -5941,59 +5948,206 @@ diagnostics.
 We compare the full GA profile for two prompts on Qwen2.5-7B:
 \begin{itemize}[nosep]
 \item \textbf{Factual}: ``The Eiffel Tower is a wrought iron lattice
-  tower in Paris France''
+  tower in Paris France'' $\;\to\;$ coherent continuation about Paris
+  and the 1889 World's Fair.
 \item \textbf{Confabulation}: ``The underwater city of Atlantis was
-  discovered in 2019 near the coast of''
+  discovered in 2019 near the coast of'' $\;\to\;$ fabricated history
+  about a city on Santorini destroyed by earthquake.
 \end{itemize}
 
-\begin{center}
+\paragraph{Static profile.}
+Table~\ref{tab:halluc-static} and the static panel of
+Figure~\ref{fig:halluc-static} show the single-pass GA analysis across
+all 28 layers.
+
+\begin{table}[ht]
+\centering
 \renewcommand{\arraystretch}{1.3}\small
+\caption{Static GA profile: factual vs.\ confabulated prompt
+  (Qwen2.5-7B, 28 layers).}
+\label{tab:halluc-static}
 \begin{tabular}{@{}l r r@{}}
 \toprule
 \textbf{Metric} & \textbf{Factual} & \textbf{Confabulation} \\
 \midrule
-Mean rotation angle & 6.78 & 7.50 \\
-Max rotation angle & 8.85 & 9.96 \\
+Mean rotation angle & $6.78^\circ$ & $7.50^\circ$ \\
+Max rotation angle & $8.85^\circ$ & $9.96^\circ$ \\
 $D_{\text{total}}$ & 3.13 & 0.75 \\
 $H(D)$ (entropy) & 2.04 & 2.36 \\
-$C_{\text{acc}}$ & 7587 & 8826 \\
-Concentration & 0.221 & 0.216 \\
+Horizon-90 & layer 8 & layer 17 \\
+$C_{\text{acc}}$ & 1830.6 & 2931.3 \\
+Concentration $\mathcal{K}$ & 0.05 & 0.06 \\
 \bottomrule
 \end{tabular}
-\end{center}
 
-\begin{center}
-\includegraphics[width=0.95\linewidth]{figures_ga_learning/ch13_hallucination.pdf}
-\captionof{figure}{Geometric profile comparison: factual (blue) vs.\
-confabulation (red).  Top-left: the confabulation prompt produces
-\emph{larger} rotation angles.  Top-right: but \emph{much smaller}
-dependency --- the model does not rely on these rotations.  Bottom-left:
-effective work is concentrated in layer~0 for the factual prompt.
-Bottom-right: capacity is higher for confabulation.}
-\end{center}
+\smallskip\noindent
+\emph{Concentration} $\mathcal{K}$: fraction of total commutator norm
+in the top-$m$ principal planes (Chapter~\ref{chap:capacity}).
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\linewidth]{figures_ga_learning/ch16_3_static_profile.pdf}
+\caption{Static GA profile across 28 layers.  The confabulated prompt
+  shows higher rotation angles but dramatically lower dependency,
+  indicating ``busy but useless'' layers.}
+\label{fig:halluc-static}
+\end{figure}
 
 \textbf{Interpretation.}
-The confabulation prompt has \textbf{higher geometric activity}
-(mean rotation $7.50$ vs $6.78$, capacity $8826$ vs $7587$) but
-\textbf{4$\times$ lower dependency} ($D_{\text{total}} = 0.75$ vs
-$3.13$).  This is the ``busy but useless'' signature: the model's
-internal rotations are large and complex, but the output barely
-depends on them.  The model is churning through representations
-without arriving at a grounded answer.
+The confabulation prompt exhibits the classic hallucination signature:
+$10\%$ higher rotation angles ($7.50^\circ$ vs.\ $6.78^\circ$) but
+$4\times$ lower total dependency ($D_{\text{total}} = 0.75$ vs.\
+$3.13$).  The model is geometrically active --- it rotates
+representations vigorously --- but these rotations do not contribute
+to the final prediction.  The cumulative capacity $C_{\text{acc}}$ is
+$60\%$ higher for the confabulated prompt ($2931$ vs.\ $1831$),
+confirming substantial geometric work that the output does not depend
+on.
 
-The factual prompt concentrates effective work in the earliest layers
---- the model quickly builds a confident representation.  The
-confabulation prompt spreads computation more evenly (higher entropy
-$2.36$ vs $2.04$), indicating the model never settles on a coherent
-geometric path.
+The higher dependency entropy ($2.36$ vs.\ $2.04$) shows that the
+small residual dependency is diffused across layers rather than
+concentrated.  The factual prompt concentrates effective work in the
+earliest layers (Horizon-90 at layer~8) --- the model quickly builds a
+confident representation.  The confabulation prompt never settles:
+Horizon-90 is delayed to layer~17, indicating the model searches
+deeper without arriving at a grounded answer.
+
+\begin{finding}
+\textbf{Confabulation inflates grade-2 content without corresponding
+dependency} (observed in this example).
+$C_{\text{acc}}$ is $60\%$ higher for the confabulated prompt
+($2931$ vs.\ $1831$), yet $D_{\text{total}}$ is $4\times$ lower.
+High $C_{\text{acc}}$ with low $D_{\text{total}}$ is a static
+signature of hallucination: the model performs substantial geometric
+work that the output does not depend on.
+\end{finding}
+
+\paragraph{Frontier dynamics during generation.}
+The static profile captures a single forward pass.  But hallucination
+unfolds over time --- each generated token changes the model's
+internal geometry.
+
+Note that the frontier metric $C_{\text{acc}}(s)$ measures per-step
+accumulated non-commutativity at each decode step, while the static
+$C_{\text{acc}}$ in Table~\ref{tab:halluc-static} sums over all layers
+in a single pass on the prompt.  Their scales differ, and the direction
+can reverse: the confabulated prompt has higher static capacity (more
+total geometric work on the prompt) but lower per-step frontier capacity
+(less structured computation at each generation step, decaying faster).
+
+Table~\ref{tab:halluc-frontier} and
+Figures~\ref{fig:halluc-capacity}--\ref{fig:halluc-bccos} (including the layer--step heatmaps in Figure~\ref{fig:halluc-heatmaps}) show how the
+GA signature evolves during 50 steps of autoregressive decoding.
+
+\begin{table}[ht]
+\centering
+\renewcommand{\arraystretch}{1.3}\small
+\caption{Frontier GA metrics during autoregressive generation
+  (50 decode steps, Qwen2.5-7B).}
+\label{tab:halluc-frontier}
+\begin{tabular}{@{}l r r@{}}
+\toprule
+\textbf{Metric} & \textbf{Factual} & \textbf{Confabulation} \\
+\midrule
+$C_{\text{acc}}(s)$ mean     & 23.08  & 19.63 \\
+$C_{\text{acc}}$ growth rate & $-0.18$ & $-0.28$ \\
+Capacity periodicity         & 0.186  & 0.213 \\
+Effective rank mean          & 24.89  & 24.95 \\
+Erank trend ($\times 100$)   & 0.32   & 0.34 \\
+Plane diversity              & 0.681  & 0.708 \\
+BCcos mean                   & $0.0001$ & $-0.0015$ \\
+Curvature acceleration       & 0.186  & 0.221 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\linewidth]{figures_ga_learning/ch16_3_frontier_capacity.pdf}
+\caption{Frontier capacity $C_{\text{acc}}(s)$ during generation.
+  The confabulated sequence (red) shows faster capacity decay,
+  indicating progressive loss of geometric structure.}
+\label{fig:halluc-capacity}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\linewidth]{figures_ga_learning/ch16_3_frontier_heatmaps.pdf}
+\caption{Layer--step heatmaps of frontier curvature and dependency
+  for factual (left) and confabulated (right) generation.}
+\label{fig:halluc-heatmaps}
+\end{figure}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\linewidth]{figures_ga_learning/ch16_3_frontier_bccos.pdf}
+\caption{Frontier bivector--cosine similarity (BCcos) trace.
+  Both prompts hover near zero, but the confabulated sequence has
+  higher variance, reflecting less stable rotation planes.}
+\label{fig:halluc-bccos}
+\end{figure}
+
+During generation, the confabulation diverges further.  Its frontier
+capacity decays ${\sim}56\%$ faster (growth rate $-0.28$ vs.\ $-0.18$),
+meaning the model progressively loses geometric structure as it
+generates fabricated content.  The higher curvature acceleration
+($0.221$ vs.\ $0.186$) confirms that the confabulated sequence's
+curvature is not just higher but \emph{accelerating} --- the geometry
+destabilises as the model commits to an unsupported narrative.
+
+The BCcos mean is near zero for both prompts ($+0.0001$ vs.\
+$-0.0015$), placing both in the ``orthogonal to expected flow''
+regime (Section~\ref{sec:hallucination}).  This indicates that
+neither the factual nor the confabulated generation trajectory aligns
+with the prompt's reference direction --- consistent with the
+Chapter~\ref{chap:frontier-prediction} finding that frontier rotation planes
+are orthogonal to the prompt geometry.  The confabulation's slightly
+negative BCcos and higher variance (Figure~\ref{fig:halluc-bccos})
+hint at occasional causal inversions, though the effect is small.
+
+The higher plane diversity ($0.708$ vs.\ $0.681$) and capacity
+periodicity ($0.213$ vs.\ $0.186$) indicate that the confabulation
+explores more rotation planes without settling into a stable
+computational pattern --- consistent with the ``wandering'' signature
+identified in the static analysis.
+
+\begin{finding}
+\textbf{Frontier capacity decay rate distinguishes factual from
+confabulated generation} (observed in this example).
+The $C_{\text{acc}}$ growth rate is a real-time hallucination signal:
+factual generation maintains $-0.18$ decay while confabulation decays
+at $-0.28$.  Combined with the higher curvature acceleration, these
+frontier metrics could serve as an online hallucination detector
+without requiring ground-truth labels.
+\end{finding}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.95\linewidth]{figures_ga_learning/ch16_3_diagnostic_summary.pdf}
+\caption{Diagnostic summary comparing factual and confabulated
+  generation across static and frontier GA metrics.}
+\label{fig:halluc-summary}
+\end{figure}
+
+When multiple reasoning chains are sampled, their embeddings
+$v_1, \ldots, v_K$ form a Gram matrix $G_{ij} = v_i^\top v_j$.
+The \textbf{Gram condition number} $\kappa_G$ --- the ratio of the
+largest to smallest eigenvalue of $G$ --- measures the anisotropy
+of this cloud.  Note that $\kappa_G$ characterises the \emph{inter-chain}
+geometry (how reasoning paths relate to each other), unlike the
+per-layer condition number $\kappa^{(l)}$ from
+Chapter~\ref{chap:frames} (which measures how selectively a single
+layer amplifies features).
 
 \begin{finding}
 \textbf{Metric anisotropy complements rotational diagnostics}
 (observed in this example).
-The condition number $\kappa_G$ is the ratio of the largest to smallest eigenvalue of the Gram matrix $G_{ij} = v_i^\top v_j$. A large $\kappa_G$ means the reasoning paths are concentrated in a thin, elongated region rather than a round cloud. It measures spectral concentration.  In
-Qwen2.5-7B, factual prompts produce more spectrally concentrated
-paths (low effective rank) than confabulations.  High $\kappa_G$ with
-low $\mathcal{C}$ would be a \emph{warning sign}: apparent consistency
+A large $\kappa_G$ means the reasoning paths are concentrated in a
+thin, elongated region rather than a round cloud.  In Qwen2.5-7B,
+factual prompts produce more spectrally concentrated paths (low
+effective rank) than confabulations.  High $\kappa_G$ with low
+$\mathcal{C}$ would be a \emph{warning sign}: apparent consistency
 that may be a metric artefact rather than genuine agreement.  Whether
 these patterns generalise requires further investigation.
 \end{finding}
@@ -6040,7 +6194,7 @@ of their areas.
 \paragraph{Why this is a GA concept.}
 The determinant $\det S = (u_i^\top c_q)(u_{i+1}^\top c_{\text{ctx}})
 - (u_i^\top c_{\text{ctx}})(u_{i+1}^\top c_q)$ is precisely the
-the inner product between two bivectors --- measuring how much two planes overlap, with a sign reflecting whether they are oriented the same way:
+inner product between two bivectors --- measuring how much two planes overlap, with a sign reflecting whether they are oriented the same way:
 $\langle u_i \op u_{i+1}, \, c_q \op c_{\text{ctx}} \rangle$.  In
 GA language, BCcos measures whether the \emph{plane of the model's
 reasoning trajectory} is aligned with the \emph{plane of the expected
@@ -6066,6 +6220,16 @@ wedge product.  This is information that no scalar similarity measure
 can capture.
 The key intuition: swapping two vectors in a wedge product flips the sign ($a \wedge b = -(b \wedge a)$). So if the model's reasoning goes opposite to what the context expects, the signed area becomes negative. Cosine similarity cannot detect this reversal; the Binet--Cauchy cosine can.
 \end{keyidea}
+
+\paragraph{Connection to hallucination diagnostics.}
+BCcos complements the capacity-based hallucination signatures from the
+preceding subsection.  Capacity decay detects ``busy but useless''
+layers (high rotation, low dependency); BCcos detects a subtler
+failure where the model's reasoning \emph{direction} is reversed
+relative to the expected information flow.  A hallucinating model
+may show near-zero or negative BCcos at layers where a factual model
+shows positive values --- the fabricated narrative flows in the wrong
+causal direction even when scalar curvature looks normal.
 
 % ────────────────────────────────────────────────────────────────────
 \section{Application 4: Plane-specific steering}
@@ -6098,7 +6262,9 @@ The angular component changes \emph{which direction} the vector points (a rotati
 \subsection{Why the rotation plane matters}
 
 The versor decomposition tells us that inter-layer dynamics are
-\textbf{metric-dominated}: the symmetric factor $\metric{l}$
+\textbf{metric-dominated} (the directional flow ratio
+$\rho \sim 0.03$--$0.06$; Chapter~\ref{chap:versor}): the
+symmetric factor $\metric{l}$
 contributes $\sim$94--97\% of the transition operator's Frobenius norm,
 while the rotation factor $\rotor{l}$ contributes only $\sim$3--6\%.
 
@@ -6127,7 +6293,9 @@ convert angular perturbations into radial ones.  Over 28 layers,
 purely angular purity degrades substantially.  Dense addition, which
 appears geometrically crude, can achieve higher end-to-end angular
 purity because $|v^\top \hat{H}| \sim \mathcal{O}(1/\sqrt{k})$ in
-high dimensions (because a random vector in $k$ dimensions is nearly perpendicular to any fixed direction --- the expected dot product shrinks as $1/\sqrt{k}$), making the perturbation naturally tangential.
+high dimensions, making the perturbation naturally tangential.
+(In $k$ dimensions, a random vector is nearly perpendicular to any
+fixed direction --- the expected dot product shrinks as $1/\sqrt{k}$.)
 \end{pitfall}
 
 \subsection{The steering recipe}
@@ -6177,7 +6345,7 @@ The full GA steering pipeline runs during autoregressive generation:
   each layer.
 \item Compute the \textbf{Cayley bivector}
   $A^{(l)} = (v_q \op u_\pi) / (1 + v_q^\top u_\pi)$ at each layer.
-  The magnitude $\tau^{(l)} = \|A^{(l)}\|_F$ identifies which layer is
+  The magnitude $\tau^{(l)} = \|A^{(l)}\|_F / \sqrt{2}$ identifies which layer is
   most influenced by context.
 \item Extract the \textbf{principal plane} of $A^{(l)}$ at the
   best layer, giving two orthonormal vectors $(v_1, v_2)$.
@@ -6311,6 +6479,15 @@ plane-specific method from the steering recipe above is a
 metric-aligned (grade-0) intervention in the 2D subspace
 identified by the bivector.
 
+The experiment above validates the \emph{detection} and
+\emph{diagnosis} steps of the pipeline: the Cayley bivector
+identifies the target layer and the semantic plane of context
+influence.  The plane-specific metric intervention (modifying
+eigenvalues of $\metric{l}$ in the bivector's 2D subspace)
+remains a proposed protocol; empirical comparison of its
+effectiveness against the methods in this table is an open
+problem (Chapter~\ref{chap:conclusion}).
+
 \begin{finding}
 \textbf{Context influence as a rotational phenomenon} (observed in
 Qwen2.5-7B, 3~examples).
@@ -6349,7 +6526,7 @@ all three capabilities.
 diagnostic dimensions in a single view:
 
 \begin{center}
-\includegraphics[width=0.95\linewidth]{figures_ga_learning/ch13_ga_summary.pdf}
+\includegraphics[width=0.95\linewidth]{figures_ga_learning/ch16_ga_summary.pdf}
 \captionof{figure}{4-panel GA summary for Qwen2.5-7B on a 14-token prompt.
 Top-left: rotor angles.  Top-right: plane similarity.
 Bottom-left: curvature map.  Bottom-right: capacity contributions.}
@@ -6368,33 +6545,57 @@ You started with vectors and the dot product.  You now have:
 
 \begin{center}
 \renewcommand{\arraystretch}{1.5}\small
-\begin{tabular}{@{}L{3cm} L{4cm} L{4cm}@{}}
+\begin{tabular}{@{}L{2.2cm} L{3.8cm} L{4.8cm}@{}}
 \toprule
 \textbf{Chapter} & \textbf{GA concept} & \textbf{Transformer insight} \\
 \midrule
+\multicolumn{3}{@{}l}{\cellcolor{Navy!8}\textbf{Part~I: Vectors and Products}} \\
 1--2 & Vectors, geometric product & Hidden states encode both alignment
   and plane information \\
 3 & Bivectors & Layer rotations have principal planes, not just
   magnitudes \\
 4 & Orthonormal frames & Whitening establishes the metric for valid GA \\
+\midrule
+\multicolumn{3}{@{}l}{\cellcolor{Navy!8}\textbf{Part~II: Rotations and Rotors}} \\
 5 & Rotors & Layer transitions are rotations with explicit planes \\
 6 & Versor decomposition & Grade-0 (stretch) vs.\ grade-2 (rotation) \\
 7 & Principal planes & Rotation plane evolution across the network \\
 8 & Eigenvalues & Grade-0 dominates control; late layers are highly
   selective \\
+\midrule
+\multicolumn{3}{@{}l}{\cellcolor{Navy!8}\textbf{Part~III: Curvature and Commutators}} \\
 9 & Commutators & Non-commutativity lives in specific planes \\
 10 & Holonomy & Curvature has a direction, not just a magnitude \\
 11 & Capacity & Decompose computational complexity by plane \\
 12 & Dependency + bivectors & Identify the planes that matter \\
-13 & Applications & Diagnose and steer via plane-specific interventions \\
+\midrule
+\multicolumn{3}{@{}l}{\cellcolor{Navy!8}\textbf{Part~IV: The Decode Frontier}} \\
+13 & Frontier rotation, bivectors & Geometry evolves during generation;
+  plane drift and repetition collapse \\
+14 & Frontier capacity, effective rank & Quality scores from capacity
+  decay; hallucination as accelerating geometric loss \\
+15 & Online detection, BCcos, steering & Predict quality in real time;
+  break repetition orbits via plane-specific intervention \\
+\midrule
+\multicolumn{3}{@{}l}{\cellcolor{Navy!8}\textbf{Part~V: Synthesis}} \\
+16 & Cayley bivector, BCcos, directional--radial decomposition &
+  Diagnose and steer: context detection, hallucination signatures,
+  plane-specific steering \\
 \bottomrule
 \end{tabular}
 \end{center}
 
 The table above is a chapter-by-chapter inventory.  But the real
-contribution is not a list --- it is a \emph{structure}.  The following
-diagram shows how the pieces fit together into one coherent geometric
-picture.
+contribution is not a list --- it is a \emph{structure}.
+
+Parts~I--III develop the \emph{static} geometry: how a transformer
+processes a fixed prompt.  Part~IV extends this to \emph{generation},
+where the geometric field grows one column at a time and the model's
+internal structure evolves with every decoded token.  Part~V unifies
+both perspectives into practical diagnostic and steering tools.
+
+The following diagram shows how the pieces fit together into one
+coherent geometric picture.
 
 % ── Figure: The geometry of transformer computation ────────────────
 \begin{figure}[ht]
@@ -6707,28 +6908,55 @@ transformations, and holonomy measures interaction between directions.
 
 \section{What was invisible before}
 
-Scalar summaries --- the size of a rotation ($\|U - I\|_F$), the size of a commutator ($\|[A_i, A_j]\|_F$), or the curvature magnitude ($\|\Omega - I\|_F$) --- tell you \emph{how much}.  GA tells you \emph{how much} and
-\emph{in which direction}.  Specifically:
+Scalar summaries --- the size of a rotation ($\|U - I\|_F$), the size
+of a commutator ($\|[A_i, A_j]\|_F$), or the curvature magnitude
+($\|R_{\text{loop}} - I\|_F$) --- tell you \emph{how much}.  GA tells you
+\emph{how much} and \emph{in which direction}.  Specifically:
 
 \begin{enumerate}[nosep]
-\item Which planes each layer rotates in.
-\item Which planes the curvature acts in.
-\item Which planes different layers fail to commute in.
-\item Which planes the model's output depends on.
+\item Which planes each layer rotates in (Part~II).
+\item Which planes the curvature acts in (Part~III).
+\item Which planes different layers fail to commute in (Part~III).
+\item Which planes the model's output depends on (Part~III).
+\item How rotation planes drift, stabilise, or collapse during
+  generation (Part~IV).
+\item Whether frontier capacity decay is accelerating --- a real-time
+  signal of hallucination (Parts~IV--V).
+\item Whether the model's reasoning trajectory is causally aligned
+  with its context, via the oriented Binet--Cauchy cosine (Part~V).
 \end{enumerate}
 
-None of this information is accessible from norms alone.  It requires
-the full bivector.
+Items 1--4 are the \emph{static} contribution: directional information
+from a single forward pass that norms cannot provide.  Items 5--7 are
+the \emph{dynamic} contribution: the decode frontier extends GA from
+post-hoc analysis to real-time monitoring during generation.
 
 \section{Where to go next}
 
 \begin{enumerate}
+\item \textbf{Frontier hallucination detection at scale.}  Our
+  hallucination experiment (Section~\ref{sec:hallucination}) tested
+  one model and one prompt pair.  The frontier capacity decay rate
+  ($-0.28$ for confabulation vs.\ $-0.18$ for factual) is a
+  promising online signal, but validating it as a reliable detector
+  requires systematic evaluation across models, prompt types, and
+  hallucination benchmarks.
+
+\item \textbf{Online steering during generation.}  We demonstrated
+  orbit-breaking via plane-specific intervention at a single decode
+  step.  Can frontier-guided steering be applied continuously ---
+  monitoring the capacity decay rate and intervening whenever it
+  exceeds a threshold --- to prevent hallucination mid-generation?
+
 \item \textbf{Higher grades.}  We used only grades 0 and 2.  Do
   trivectors (grade 3) carry meaningful information about three-layer
   interactions?
 
-\item \textbf{Conformal GA.}  Conformal GA extends the algebra by adding two extra dimensions (written $\mathrm{Cl}(k+1,1)$), which allows translations --- not just rotations --- to be represented algebraically.  Could this unify residual
-  connections (translations) with rotations (rotors)?
+\item \textbf{Conformal GA.}  Conformal GA extends the algebra by
+  adding two extra dimensions (written $\mathrm{Cl}(k+1,1)$), which
+  allows translations --- not just rotations --- to be represented
+  algebraically.  Could this unify residual connections (translations)
+  with rotations (rotors)?
 
 \item \textbf{GA in training dynamics.}  How does the bivector field
   evolve during pre-training?  Do specific planes emerge at specific
@@ -6737,7 +6965,10 @@ the full bivector.
 \item \textbf{Multimodal models.}  When vision and language tokens
   interact, do they occupy different rotation planes?
 
-\item \textbf{Projective GA.}  Projective GA (written $\mathrm{Cl}(k,0,1)$) adds one extra dimension whose square is zero, providing a natural way to represent the affine shifts that residual connections add.
+\item \textbf{Projective GA.}  Projective GA (written
+  $\mathrm{Cl}(k,0,1)$) adds one extra dimension whose square is
+  zero, providing a natural way to represent the affine shifts that
+  residual connections add.
 \end{enumerate}
 
 \section{Further reading}
@@ -7107,7 +7338,7 @@ $(e_1 + e_2)^2 = \|e_1 + e_2\|^2 = 2$
 $(e_1 + e_2)^2 = e_1 e_1 + e_1 e_2 + e_2 e_1 + e_2 e_2
 = 1 + e_1 e_2 + e_2 e_1 + 1 = 2 + e_1 e_2 + e_2 e_1$
 
-Comparing: $e_1 e_2 + e_2 e_1 = 0$, so
+Comparing: $e_1 e_2 + e_2 e_1 = 0$.  This gives us:
 
 \begin{gabox}
 \textbf{Anti-commutativity of orthogonal vectors.}
@@ -7488,12 +7719,21 @@ from layer_time_ga.capacity import (
 \textcolor{white}{\textbf{Term}} &
 \textcolor{white}{\textbf{Definition}} \\
 \midrule
+BCcos (Binet--Cauchy cosine) &
+  A signed measure of oriented-area overlap between two bivector planes;
+  ranges from $-1$ (anti-aligned) through $0$ (orthogonal) to $+1$ (co-planar). \\
 Bivector &
   A grade-2 element representing an oriented plane; stored as a
   skew-symmetric matrix. \\
 Blade &
   A bivector (or higher-grade element) that can be written as a single
   outer product $a \op b$; represents one plane. \\
+Capacity ($C_{\mathrm{acc}}$) &
+  Accumulated non-commutativity $\sum \|[B^{(l)}, B^{(l+1)}]\|_F$;
+  measures total geometric computation across layers. \\
+Cayley bivector &
+  The skew-symmetric matrix $A = (I - U)(I + U)^{-1}$ extracted from
+  a rotation~$U$; its principal planes are the rotation's eigenplanes. \\
 Clifford algebra &
   The algebra $\mathrm{Cl}(k, 0)$ generated by vectors under
   $v^2 = \|v\|^2$ (i.e., squaring a vector gives its squared length).  Contains all grades from 0 to $k$. \\
@@ -7503,6 +7743,15 @@ Commutator &
 Curvature bivector &
   $\log(R_{\text{loop}})$: the plane in which space is curved at a
   grid point; obtained from the holonomy rotor. \\
+Dependency ($D_l$) &
+  $\|\partial s / \partial H^{(l)}\|_F$: gradient-based measure of how
+  much the output depends on layer~$l$'s hidden state. \\
+Directional flow ratio ($\rho^{(l)}$) &
+  $\|A^{(l)}\|_F / (\|S^{(l)}\|_F + \varepsilon)$: ratio of
+  grade-2 (rotation) to grade-0 (stretch) content. \\
+Frontier &
+  The sequence of layer-time grid points visited during autoregressive
+  decoding; each decode step adds a new column to the grid. \\
 Geometric product &
   $ab = a \ip b + a \op b$; the fundamental operation of GA. \\
 Grade &
@@ -7514,6 +7763,9 @@ Holonomy &
 Metric factor &
   The symmetric positive-definite matrix $P$ from $T = RP$; encodes
   grade-0 stretching. \\
+Nonseparability index ($\mathcal{D}$) &
+  $\sum \|R_{\text{loop}} - I\|_F$: total holonomy deficit across the
+  layer-token grid; measures geometric entanglement. \\
 Orthonormal frame &
   Basis vectors with $e_i \ip e_j = 1$ when $i=j$ and $0$ otherwise; required for valid GA
   operations. \\
@@ -7527,6 +7779,9 @@ Rotor &
   in plane $B$ by angle $\theta$. \\
 Sandwich product &
   $v' = R v \rev{R}$; how a rotor acts on a vector. \\
+$\tau$ (Cayley magnitude) &
+  $\|A\|_F / \sqrt{2} = \tan(\theta/2)$: a scalar summary of rotation
+  strength from the Cayley bivector. \\
 Versor decomposition &
   $T = RP$: separating rotation (grade-2) from stretching (grade-0). \\
 Whitening &

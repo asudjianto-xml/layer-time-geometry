@@ -541,8 +541,8 @@ else:
 # ── GA Summary plot ───────────────────────────────────────────
 section("GA Summary Plot")
 # Use the longer prompt for richer curvature map in the summary
-result_ch10.plot_ga_summary(save_path=os.path.join(FIGDIR, 'ch13_ga_summary.pdf'))
-print("  Saved ch13_ga_summary.pdf")
+result_ch10.plot_ga_summary(save_path=os.path.join(FIGDIR, 'ch16_ga_summary.pdf'))
+print("  Saved ch16_ga_summary.pdf")
 
 print(f"\n{'='*60}")
 print(f"  All figures saved to {FIGDIR}/")
