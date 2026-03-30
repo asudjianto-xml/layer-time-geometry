@@ -94,6 +94,18 @@ from .generation import (
     frontier_steering_target,
 )
 
+from .bca import (
+    BCAResult,
+    BCALagSweep,
+    RollingBCAResult,
+    BCAPhasePortrait,
+    bca_decompose,
+    bca_lag_sweep,
+    bca_rolling,
+    bca_phase_portrait,
+    frontier_bca,
+)
+
 from .steering import (
     SteeringSpec,
     FrontierPerturbationHook,
@@ -167,6 +179,16 @@ __all__ = [
     "detect_repetition_online",
     "detect_repetition_string",
     "frontier_steering_target",
+    # BCA (Ch15)
+    "BCAResult",
+    "BCALagSweep",
+    "RollingBCAResult",
+    "BCAPhasePortrait",
+    "bca_decompose",
+    "bca_lag_sweep",
+    "bca_rolling",
+    "bca_phase_portrait",
+    "frontier_bca",
     # Steering (Ch17)
     "SteeringSpec",
     "FrontierPerturbationHook",

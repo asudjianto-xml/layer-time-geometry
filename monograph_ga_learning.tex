@@ -2021,7 +2021,8 @@ layers fine-tune?  Which planes carry the most rotation?
 
 \textbf{Step~1: The sequence as a dataset.}
 We do not derive the transition from a single pair of vectors.
-At layer $l$ the whitened hidden states form a matrix
+At layer $l$ the whitened hidden states
+(Chapter~\ref{chap:frames}) form a matrix
 $\tilde{H}^{(l)} \in \mathbb{R}^{T \times k}$, and at the next layer
 we have $\tilde{H}^{(l+1)} \in \mathbb{R}^{T \times k}$.  The $T$
 token positions provide $T$ simultaneous examples of how the model
@@ -3794,11 +3795,11 @@ high-dimensional.
 \begin{gabox}
 \textbf{The Jacobi identity as a consistency check.}
 
-The Jacobi identity $[A,[B,C]] + [B,[C,A]] + [C,[A,B]] = 0$ must hold
-for any three bivectors.  This is a non-trivial constraint on the
-commutator field.  If your numerical computation violates the Jacobi
-identity significantly, something is wrong with the data or the
-decomposition.
+The Jacobi identity $[A,[B,C]] + [B,[C,A]] + [C,[A,B]] = 0$
+(Chapter~\ref{chap:commutators}) must hold for any three bivectors.
+This is a non-trivial constraint on the commutator field.  If your
+numerical computation violates the Jacobi identity significantly,
+something is wrong with the data or the decomposition.
 \end{gabox}
 
 \begin{finding}
@@ -4136,6 +4137,32 @@ three things about generation:
   process.
 \end{enumerate}
 
+\begin{mathbox}
+\textbf{Technical note: the KV cache.}
+
+During generation, a transformer stores the \textbf{Key} ($K$) and
+\textbf{Value} ($V$) vectors (see Appendix~\ref{app:transformers},
+Section~\ref{sec:self-attention}) for every token processed so far.
+
+\begin{itemize}[nosep]
+\item \textbf{Purpose.}  The cache lets the model ``remember'' past
+  tokens without re-computing their representations.  When predicting
+  token $s{+}1$, the model computes only the \textbf{Query} ($Q$) for
+  the new token and matches it against the cached $K$ and $V$ of the
+  previous $s$ tokens.
+\item \textbf{Geometric consequence.}  Because the cached vectors are
+  reused and never modified, the ``past'' columns of the hidden-state
+  grid are effectively \emph{frozen}.  This creates the
+  \textbf{moving frontier}---a single active column of computation
+  that advances step by step while the previous geometry remains
+  static.
+\end{itemize}
+
+This efficiency is what makes frontier GA practical: we only need to
+track the rotations and curvature of the newest column to understand
+how the model's processing evolves in real time.
+\end{mathbox}
+
 \begin{transformer}
 During autoregressive generation, a transformer with a KV cache
 processes only the \emph{new} token at each step.  The key and value
@@ -4164,7 +4191,8 @@ We augment the layer--token grid with a third index: the
 
 \paragraph{Notation.}
 Let $\hat{H}^{(l)}_s \in \mathbb{R}^k$ denote the whitened
-frontier hidden state at layer~$l$ and decode step~$s$.
+(Chapter~\ref{chap:frames}) frontier hidden state at layer~$l$
+and decode step~$s$.
 The full frontier at step~$s$ is the column vector
 $\hat{H}_s = [\hat{H}^{(1)}_s, \ldots, \hat{H}^{(L)}_s]$.
 We skip layer~0 (the embedding) as in earlier chapters.
@@ -4267,6 +4295,16 @@ hidden state rotates, but not \emph{in which plane}.  To recover the
 plane, we use the \textbf{Cayley bivector} --- a closed-form
 skew-symmetric matrix that avoids the costly matrix logarithm.
 
+Recall from Chapter~\ref{chap:rotors} that we introduced three
+methods for extracting a rotation's bivector generator: the matrix
+logarithm (exact but $O(k^3)$), the Cayley map (algebraic, no
+transcendental functions), and the Rodrigues formula (exact for a
+single plane).  In the static analysis of Parts~I--III we used the
+matrix logarithm because full layer operators have multiple rotation
+planes.  At the frontier, however, we compare \emph{two vectors}
+(the hidden state before and after a layer), which define a single
+plane --- exactly the setting where Cayley excels.
+
 \begin{keyidea}
 For unit vectors $u$ and $v$ in $\mathbb{R}^k$, the Cayley bivector
 is:
@@ -4277,11 +4315,12 @@ is:
 This is a rank-2 skew-symmetric matrix --- hence a bivector in
 $\mathrm{Cl}(k,0)$.  It satisfies $\exp(A) \, u = v$ to first
 order and is exact when $u$ and $v$ span a 2D subspace.
-Unlike the Rodrigues rotor of Chapter~\ref{chap:rotors}, which
-requires $\log R$ via a matrix logarithm, the Cayley form is a
-single closed-form expression.  This makes it practical for the
-frontier, where we must compute one bivector per layer per decode
-step (thousands of bivectors for a typical generation).
+The Cayley magnitude $\tau = \|A\|_F / \sqrt{2}$ equals
+$\tan(\theta/2)$ for rotation angle~$\theta$
+(Section~\ref{sec:matrix-to-rotor}).
+This makes the Cayley form practical for the frontier, where we must
+compute one bivector per layer per decode step (thousands of
+bivectors for a typical generation).
 \end{keyidea}
 
 At each layer transition and decode step, we compute:
@@ -4454,6 +4493,22 @@ when the tilt happens abruptly.
 % ── 13.7 ─────────────────────────────────────────────────────────────────────
 \section{Gauge consistency: the fixed whitening metric}
 \label{sec:frontier-gauge}
+
+\begin{mathbox}
+\textbf{What is a ``gauge''?}
+
+In mathematical physics, a \textbf{gauge} is a choice of local
+coordinate system used to measure a field.  Different gauges describe
+the same physical reality in different coordinates.  In our
+laboratory, the whitening metric $\Sigma^{-1/2}$ established in
+Chapter~\ref{chap:frames} is our gauge---it is the ``ruler'' that
+defines what an orthonormal frame looks like in the model's hidden
+space.  Changing the whitening parameters would change the gauge:
+rotations, angles, and bivectors would be measured in a different
+coordinate frame.  The term ``gauge consistency'' therefore means
+ensuring we use the \emph{same ruler} throughout the entire
+generation, so that step-to-step comparisons are meaningful.
+\end{mathbox}
 
 A critical design choice underlies all frontier computations: the
 whitening metric is computed \textbf{once from the prompt} and then
@@ -5012,7 +5067,8 @@ different planes, not from any one layer's rotation.
 
 \begin{keyidea}
 The effective rank $\nu$ complements $C_{\mathrm{acc}}$ in the
-same way that the condition number complements the singular-value
+same way that the condition number
+(Chapter~\ref{chap:eigenvalues}) complements the singular-value
 sum.  Two models can have identical total capacity but very
 different effective ranks.  A model with $\nu \approx n$ uses
 all its layers for geometric computation; a model with
@@ -5033,8 +5089,9 @@ Cayley bivector and track how that plane evolves across decode
 steps.
 
 For a skew-symmetric matrix $A$, the eigenvalues come in
-conjugate pairs $\pm i\sigma_j$.  The dominant pair defines the
-principal plane of rotation; we track its \textbf{stability} as the
+conjugate pairs $\pm i\sigma_j$
+(Section~\ref{sec:principal-planes}).  The dominant pair defines
+the principal plane of rotation; we track its \textbf{stability} as the
 cosine between successive bivector matrices at each layer:
 \begin{equation}
   \text{similarity}(s)
@@ -5087,31 +5144,38 @@ curvature \emph{pattern} is:
 
 \begin{figure}[ht]
 \centering
-\includegraphics[width=\linewidth]{figures_ga_learning/ch16_curvature_direction_3prompts.pdf}
-\caption{\textbf{Curvature profile similarity} across decode steps.
-High values indicate that the curvature is distributed across
-layers in the same pattern as the previous step.
-All three prompts show high similarity ($> 0.9$), meaning the
-curvature pattern is remarkably stable even as individual
-curvature values change.}
+\includegraphics[width=0.85\linewidth]{figures_ga_learning/ch16_curvature_direction_3prompts.pdf}
+\caption{\textbf{Curvature profile similarity} across decode steps
+for the three prompt types (overlaid, y-axis zoomed to $[0.70,\,1.0]$).
+The Adversarial prompt (purple) is the most stable, hugging ${\sim}0.98$
+--- its locked repetition orbit reuses the same curvature pattern at
+every step.  Reasoning (orange) fluctuates in a middle band around
+$0.95$.  Retrieval (blue) is the most volatile, with an early transient
+dip to $0.72$ and periodic drops to ${\sim}0.84$, reflecting shifting
+content as factual continuations are retrieved.}
 \label{fig:curv-direction}
 \end{figure}
 
 \begin{finding}
-Curvature profile similarity is consistently high ($> 0.9$) for
-all three prompts.  This means:
+All three prompts maintain curvature profile similarity above $0.7$,
+confirming that the model has a fixed ``curvature architecture'' ---
+certain layers are always high-curvature and others always low ---
+regardless of the content being generated.  However, the
+\emph{volatility} of this pattern differs by task:
 
 \begin{itemize}[nosep]
-\item The \emph{which-layers-are-curved} pattern is stable across
-  generation, even as the \emph{amount} of curvature varies.
-\item The model has a fixed ``curvature architecture'' --- certain
-  layers are always high-curvature and others always low ---
-  regardless of the specific content being generated.
-\item This stability justifies Chapter~\ref{chap:frontier}'s
-  finding that layer~25 is always the peak: the curvature pattern
-  is a structural property of the model, not a content-dependent
-  one.
+\item \textbf{Adversarial} is the most stable (mean~$0.97$):
+  the repetition orbit locks the curvature pattern almost exactly.
+\item \textbf{Reasoning} is moderately stable (mean~$0.96$) with
+  occasional dips where the model shifts its reasoning strategy.
+\item \textbf{Retrieval} is the most volatile (mean~$0.95$, dipping
+  to~$0.72$): each new factual continuation triggers a brief
+  re-organisation of the curvature profile before it re-stabilises.
 \end{itemize}
+
+This ordering --- locked orbit most stable, open-ended retrieval
+least stable --- is consistent with the plane-stability findings in
+Section~\ref{sec:cap-planes}.
 \end{finding}
 
 
@@ -5698,9 +5762,10 @@ repetition cycle.  Even at $\alpha = 0.20$~rad (a substantial
 rotation), the model produces the same repeating text.
 
 \textbf{Why?}  The random perturbation plane is almost certainly
-orthogonal to the orbit's attractor manifold.  In a
-$k = 256$-dimensional space, a random 2D plane has probability
-$\sim\! 2/256 < 1\%$ of intersecting any specific 2D subspace.
+orthogonal to the orbit's attractor manifold.  Intuitively, in a
+$k = 256$-dimensional space, a random 2D plane is overwhelmingly
+unlikely to overlap with any specific 2D subspace --- the relevant
+directions occupy a vanishing fraction of the full space.
 The perturbation rotates the hidden state in an irrelevant
 direction, and the model's nonlinear layers project it back onto
 the attractor.
@@ -5730,78 +5795,440 @@ research question.
 
 
 % ── 15.6 ─────────────────────────────────────────────────────────────────────
-\section{The frontier as a causal dynamical system}
+\section{A baseline visualisation: PCA and its limits}
 \label{sec:pred-dynamics}
 
-Parts~I--IV treated the hidden-state field as a static object.
-Part~V reveals it as a \textbf{discrete causal dynamical system}:
+Parts~I--IV treated the hidden-state grid as a fixed object.
+During generation, the grid grows one column at a time, so the
+frontier becomes a \textbf{sequence of frontier descriptors}:
+\begin{equation}\label{eq:frontier-descriptor}
+  \hat{H}_s = [\hat{H}^{(1)}_s, \ldots, \hat{H}^{(L)}_s]
+  \in \mathbb{R}^{Lk}
+\end{equation}
+where $L$ is the number of layers and $k$ is the whitened dimension
+at each layer (Chapter~\ref{chap:frames}).
 
-\begin{itemize}[nosep]
-\item \textbf{State:}  the frontier column
-  $\hat{H}_s = [\hat{H}^{(1)}_s, \ldots, \hat{H}^{(L)}_s]$.
-\item \textbf{Dynamics:}  the model's forward pass maps
-  $\hat{H}_s$ to logits, which select the next token, which
-  determines $\hat{H}_{s+1}$.
-\item \textbf{Phase space:}  the space of all possible frontier
-  columns ($\mathbb{R}^{L \times k}$ after whitening).
-\end{itemize}
+Each new frontier descriptor is determined by the model's forward
+pass:
+\begin{equation}\label{eq:frontier-transition}
+  \hat{H}_{s+1} \;=\; \Phi\!\bigl(\hat{H}_s;\;
+    \mathrm{KV}_{<s}\bigr)
+\end{equation}
+where $\mathrm{KV}_{<s}$ denotes the cached key--value pairs from
+all previous steps (Section~\ref{sec:frontier-gauge}).
 
-The three prompts trace three qualitatively different trajectories:
+\begin{pitfall}
+\textbf{$\hat{H}_s$ is an observable, not the full state.}
+Equation~\eqref{eq:frontier-transition} shows that the next frontier
+descriptor depends on the entire KV cache $\mathrm{KV}_{<s}$, not on
+$\hat{H}_s$ alone.  The frontier column is therefore a \emph{partial
+descriptor} of a much larger dynamical state.  We will treat it as the
+observable we can monitor, but we should not assume it carries enough
+information to reconstruct the full dynamics.
+\end{pitfall}
+
+\paragraph{The PCA construction.}
+A natural first step is to visualise the frontier sequence with PCA.
+We stack the descriptors into a data matrix $[\hat{H}_0, \ldots,
+\hat{H}_S]^\top \in \mathbb{R}^{(S+1)\times Lk}$, compute the
+sample covariance
+\begin{equation}\label{eq:pca-covariance}
+  \Sigma = \frac{1}{S+1}\sum_{s=0}^{S}
+    (\hat{H}_s - \bar{H})(\hat{H}_s - \bar{H})^\top,
+  \qquad \bar{H} = \frac{1}{S+1}\sum_{s=0}^{S}\hat{H}_s,
+\end{equation}
+and project each descriptor onto the top $m$ eigenvectors
+$U_m = [u_1, \ldots, u_m]$:
+\begin{equation}\label{eq:pca-projection}
+  z_s = U_m^\top(\hat{H}_s - \bar{H}) \in \mathbb{R}^m,
+  \qquad m = 2 \text{ or } 3.
+\end{equation}
+The resulting low-dimensional coordinates $z_s$ trace a path through
+the PCA subspace (Figure~\ref{fig:phase-portrait}).
 
 \begin{figure}[ht]
 \centering
 \includegraphics[width=\linewidth]{figures_ga_learning/ch17_phase_portrait_3prompts.pdf}
-\caption{\textbf{Frontier phase portrait.}
-PCA projection of the frontier columns into 2D and 3D.
-Circles mark the start; squares mark the end.
-The Adversarial prompt traces a tight loop (the repetition
-orbit).  The Retrieval prompt follows a smooth arc.
-The Reasoning prompt traces a more irregular path.}
+\caption{\textbf{PCA projection of frontier trajectories} (baseline
+visualisation).  Each frontier descriptor is projected into 2D~(left)
+and 3D~(right) via PCA on the combined trajectories.  Circles mark
+the start; squares mark the end.  The Adversarial prompt traces a
+tight loop consistent with the 9-step repetition cycle identified in
+earlier sections.  Retrieval follows a smooth arc.
+Reasoning traces a more irregular path.  The first three principal
+components capture only $32\%$ of the variance; these portraits
+show a partial view of the frontier's structure.}
 \label{fig:phase-portrait}
 \end{figure}
 
-\begin{finding}
-The phase portrait reveals the dynamical character of each regime:
+\paragraph{What PCA reveals.}
+Even with only $32\%$ of variance captured ($17\%$, $10\%$, $5\%$
+in the first three components), the projection shows three
+qualitatively different behaviours:
 
 \begin{description}[nosep, leftmargin=1.2cm]
 \item[Retrieval] (\emph{smooth arc}):
-  the frontier moves steadily through phase space, never revisiting
-  earlier states.  Each step produces a geometrically distinct
-  frontier.
+  the frontier moves steadily, never revisiting earlier regions.
 \item[Reasoning] (\emph{irregular path}):
   the frontier makes larger, less predictable moves --- consistent
-  with high plane diversity and low capacity.
+  with high plane diversity and low capacity
+  (Section~\ref{sec:cap-planes}).
 \item[Adversarial] (\emph{closed loop}):
-  the frontier traces a tight orbit, revisiting the same region of
-  phase space every 9~steps.  This is the \emph{limit cycle} of
-  the dynamical system --- the geometric definition of repetition.
+  the projected trajectory traces a tight cycle consistent with the
+  9-step token repetition identified by periodic commutator spikes
+  (Section~\ref{sec:pred-online}) and capacity periodicity
+  (Chapter~\ref{chap:frontier-capacity}).
 \end{description}
 
-The first three principal components capture $17\%$, $10\%$, and
-$5\%$ of the variance, totalling $32\%$.  The frontier lives in a
-moderately high-dimensional space; even the limit cycle occupies
-more than 2--3 dimensions.
+\begin{pitfall}
+\textbf{A loop in a PCA projection does not establish a true
+periodic orbit.}  A closed curve in a 2D or 3D subspace that captures
+only $32\%$ of the variance is \emph{suggestive} of recurrence, but
+it does not prove it.  The stronger evidence for the 9-step
+repetition comes from the commutator spike periodicity, the capacity
+periodicity score, and the string-level $n$-gram detection in earlier
+sections.  We include the PCA portrait as a familiar baseline and as
+motivation for the directional analysis that follows.
+\end{pitfall}
+
+\paragraph{The limitation of PCA.}
+PCA decomposes the \emph{symmetric} covariance matrix~$\Sigma$.  It
+finds directions of maximum spread, but it treats
+``step~5 $\to$ step~10'' identically to ``step~10 $\to$ step~5.''
+Because the frontier is an ordered sequence --- each step causally
+determines the next --- this temporal direction is exactly the
+information we need.  PCA is included here as a familiar baseline to
+make one point: \emph{we can see coarse structure, but we cannot
+see directed flow}.
+
+\paragraph{Bridge to BCA.}
+Because generation is an ordered process, we need a quantity that
+changes sign when temporal order is reversed.  Covariance cannot do
+that; the \emph{antisymmetric} lagged moment can.  The next section
+introduces \textbf{Bivector Component Analysis} (BCA), which
+recovers this directional structure.
+
+Note a change of object in what follows.  PCA above operates on the
+full frontier descriptor $\hat{H}_s \in \mathbb{R}^{Lk}$ (all layers
+concatenated).  BCA will operate on a \textbf{layer-averaged
+frontier descriptor} $\hat{F}_s \in \mathbb{R}^k$, obtained by
+averaging the whitened columns across layers.  This compression
+trades per-layer resolution for a cleaner signal in the
+$k$-dimensional whitened space, and is the same reduction used by the
+frontier capacity diagnostics in Chapter~\ref{chap:frontier-capacity}.
+
+
+% ── 15.7 ─────────────────────────────────────────────────────────────────────
+\section{Directed flow: Bivector Component Analysis}
+\label{sec:pred-bca}
+
+\subsection*{The object of analysis}
+
+BCA operates on the \textbf{layer-averaged whitened frontier
+descriptor}
+\begin{equation}\label{eq:bca-object}
+  \hat{F}_s = \frac{1}{L}\sum_{l=1}^{L} \hat{H}^{(l)}_s
+  \;\in\; \mathbb{R}^k, \qquad s = 0, 1, \ldots, S,
+\end{equation}
+where $\hat{H}^{(l)}_s$ is the whitened frontier column at layer~$l$
+and decode step~$s$ (Chapter~\ref{chap:frames}).  This compression
+from $\mathbb{R}^{Lk}$ to $\mathbb{R}^k$ trades per-layer resolution
+for a more stable global signal, and is the same reduction used by
+the frontier capacity diagnostics in
+Chapter~\ref{chap:frontier-capacity}.
+
+\begin{pitfall}
+\textbf{What layer-averaging loses.}
+If different layers exhibit opposite temporal patterns (e.g.\
+early-layer flow opposes late-layer flow), averaging can cancel them.
+Running BCA on individual layers or on layer-grouped sub-blocks is a
+natural extension that we leave for future work.
+\end{pitfall}
+
+\subsection*{Why PCA loses directionality}
+
+Given the frontier sequence $\hat{F}_0, \ldots, \hat{F}_S$, we
+centre by removing the mean and form the \textbf{lagged
+cross-moment matrix} at lag~$\tau$:
+\begin{equation}\label{eq:bca-centering}
+  \tilde{F}_s = \hat{F}_s - \bar{F}, \qquad
+  \bar{F} = \frac{1}{S+1}\sum_{s=0}^{S}\hat{F}_s,
+\end{equation}
+\begin{equation}\label{eq:lagged-moment}
+  M_\tau = \frac{1}{S - \tau}\sum_{s=0}^{S-\tau-1}
+    \tilde{F}_s \, \tilde{F}_{s+\tau}^\top.
+\end{equation}
+Centering ensures that $M_\tau$ reflects temporal covariation rather
+than persistent mean drift.  Without it, the antisymmetric component
+could conflate steady drift with genuine sequential organisation.
+
+This matrix is generally \emph{not} symmetric.  Persistent temporal
+asymmetry in the sequence contributes to differences between
+$M_\tau[i,j]$ and $M_\tau[j,i]$.  The antisymmetric part isolates
+that directional component.
+
+PCA, however, works on symmetric matrices.  When applied to lagged
+data, it implicitly symmetrises $M_\tau$:
+\begin{equation}\label{eq:bca-decomp}
+  M_\tau = \underbrace{\tfrac{1}{2}(M_\tau + M_\tau^\top)}_{C_\tau
+    \;\text{(symmetric --- what PCA sees)}}
+  + \underbrace{\tfrac{1}{2}(M_\tau - M_\tau^\top)}_{B_\tau
+    \;\text{(antisymmetric --- what PCA discards)}}
+\end{equation}
+
+The symmetric part $C_\tau$ averages ``$i$ at step~$s$, $j$ at
+step~$s{+}\tau$'' with the reverse, erasing the distinction.  The
+antisymmetric part $B_\tau$ is what remains: a skew-symmetric
+matrix --- a \textbf{bivector} --- that encodes the directed
+temporal asymmetry in the sequence.
+
+\begin{keyidea}
+\textbf{PCA sees where the frontier is.  BCA sees where the
+frontier goes.}
+
+PCA finds directions of maximum \emph{variance} (spread).  BCA
+finds oriented planes of maximum \emph{directed flow} (sequential
+structure).  Even lagged PCA cannot recover this information,
+because symmetrisation averages away the temporal asymmetry.  The
+antisymmetric part $B_\tau$ reverses sign if you play the sequence
+backwards --- it is the part of the data that knows which direction
+time runs.
+\end{keyidea}
+
+\subsection*{The BCA decomposition}
+
+Because $B_\tau$ is real and skew-symmetric, the real Schur
+decomposition brings it to block-diagonal form
+(Section~\ref{sec:principal-planes}):
+\begin{equation}\label{eq:bca-schur}
+  Q^\top B_\tau\, Q = \operatorname{blkdiag}\!\left(
+    \begin{bmatrix} 0 & \omega_1 \\ -\omega_1 & 0 \end{bmatrix},
+    \;\ldots,\;
+    \begin{bmatrix} 0 & \omega_m \\ -\omega_m & 0 \end{bmatrix},
+    \;0,\;\ldots,\;0
+  \right)
+\end{equation}
+where $Q$ is orthogonal and $\omega_1 \geq \omega_2 \geq \cdots
+\geq \omega_m > 0$.  Each $2\times2$ block defines a
+\textbf{principal plane of directed flow}: the columns
+$q_{2j-1}, q_{2j}$ of~$Q$ span the $j$-th plane, and $\omega_j$
+measures how strongly the frontier rotates within that plane across
+lag~$\tau$.  This is the same principal-plane structure that
+Chapter~\ref{chap:bivectors} introduced for bivectors of single-layer
+transformations, now applied to the temporal bivector of the frontier
+trajectory.
+
+Three summary diagnostics capture the directed flow:
+
+\begin{enumerate}[nosep]
+\item \textbf{Total directed flow} $\Omega = \sum_j \omega_j$:
+  the aggregate magnitude of temporal asymmetry across all planes.
+\item \textbf{Coherence} $\Psi = \omega_1 / \Omega$: the fraction
+  of directed flow concentrated in the single strongest plane.
+  High coherence ($\Psi \to 1$) means the trajectory follows one
+  organised pattern; low coherence means the sequential structure is
+  spread across many planes.  Note that $\Psi$ is only meaningful
+  when $\Omega$ is appreciably above zero; when total flow is small,
+  coherence becomes numerically unstable.
+\item \textbf{Asymmetry ratio} $\|B_\tau\|_F / \|C_\tau\|_F$: the
+  relative strength of directional vs.\ non-directional structure.
+  This is conceptually analogous to the grade-2 vs.\ grade-0 ratio
+  from Chapter~\ref{chap:versor}: both contrast an antisymmetric
+  (rotational) quantity with a symmetric (stretching) quantity.  The
+  analogy is conceptual, not structural: the versor decomposition
+  $T = RP$ is multiplicative and acts on a single layer, while
+  $M_\tau = C_\tau + B_\tau$ is additive and acts on a time series.
+\end{enumerate}
+
+\subsection*{Lag sweep: detecting the characteristic time scale}
+
+Sweeping the lag $\tau$ from 1 to 15 decode steps reveals each
+prompt's characteristic temporal structure
+(Figure~\ref{fig:bca-lag}).
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures_ga_learning/bca_lag_sweep.pdf}
+\caption{\textbf{BCA lag sweep.}
+(a)~Asymmetry ratio grows monotonically for Retrieval
+(increasingly directional at longer horizons), stays flat for
+Reasoning, and dips at lag~9 for Adversarial --- its cycle length.
+(b)~Directed flow ($\Omega$): Adversarial drops sharply at lag~9
+while Retrieval grows steadily.
+(c)~Coherence ($\Psi$): Adversarial peaks at lag~9
+($\Psi \approx 0.27$), meaning the residual flow concentrates
+into a single plane --- the repetition plane.}
+\label{fig:bca-lag}
+\end{figure}
+
+\begin{finding}
+\textbf{BCA detects the 9-token repetition cycle as a characteristic
+signature in directed flow}
+(observed in Qwen2.5-7B across three prompt categories).
+
+\emph{Statistical caveat:} all values in this section are point
+estimates from single generation runs of 50 decode steps.  The
+effective sample size for lag-$\tau$ estimates is $S - \tau$, which
+at $\tau = 9$ is only 41~steps.  The patterns described below are
+indicative and require multi-run replication to establish confidence
+intervals (Section~\ref{sec:pred-open}).
+
+\medskip
+At lag $\tau = 9$ (the repetition cycle length), the Adversarial
+prompt shows a simultaneous \emph{drop} in total directed flow and
+\emph{spike} in coherence.  The mechanism is straightforward:
+\begin{itemize}[nosep]
+\item When $\tau$ matches the cycle length, the lagged frontier
+  $\tilde{F}_{s+\tau}$ is approximately aligned with
+  $\tilde{F}_s$ --- the trajectory has nearly returned to where it
+  started.
+\item Gross displacement across one full cycle is therefore small,
+  so total directed flow $\Omega$ drops.
+\item The small residual that does \emph{not} cancel is dominated
+  by the single plane of the orbit, so coherence $\Psi$ rises.
+\end{itemize}
+This simultaneous drop-and-spike is the BCA signature of a
+repeating cycle.
+
+By contrast, Retrieval's asymmetry ratio grows monotonically from
+$0.23$ at lag~1 to $0.54$ at lag~15: the generation has a preferred
+forward direction that strengthens at longer horizons --- a
+pattern that PCA cannot detect.  Reasoning remains the least
+directional at all lags, consistent with its irregular path.
+\end{finding}
+
+\subsection*{Rolling BCA: how directed flow evolves}
+
+Computing BCA in a rolling window tracks how the directional
+structure changes during generation
+(Figure~\ref{fig:bca-rolling}).  Each window consists of 15
+consecutive decode steps with lag $\tau = 1$.  Windows overlap by
+14~steps (sliding by one step at a time).  Centering and
+lag-moment computation are performed independently within each
+window; no global centering is applied.  The curves are plotted
+raw (unsmoothed), with each point aligned to the centre step of
+its window.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures_ga_learning/bca_rolling_frontier.pdf}
+\caption{\textbf{Rolling BCA} (window 15, lag 1).
+(a)~Directed flow: Adversarial starts high and decays as the
+repetition settles in; Retrieval increases as generation builds
+directional structure.
+(b)~Coherence: Adversarial is consistently the highest
+(${\sim}0.20$--$0.23$), confirming single-plane organisation
+throughout.
+(c)~Asymmetry ratio: Retrieval increases steadily (growing
+directional structure); Adversarial decreases as the repetition
+becomes more regular.}
+\label{fig:bca-rolling}
+\end{figure}
+
+\subsection*{BCA phase portrait: directions of flow vs.\ directions
+  of spread}
+
+Projecting the frontier trajectories onto the principal planes of
+$B_\tau$ (instead of the principal components of the covariance)
+shows where the \emph{sequential structure} lives
+(Figure~\ref{fig:bca-phase}).
+
+Given the $j$-th principal plane spanned by orthonormal columns
+$q_{2j-1}, q_{2j}$ from the decomposition~\eqref{eq:bca-schur},
+the projection of each frontier descriptor is:
+\begin{equation}\label{eq:bca-projection}
+  z_s^{(j)} = \bigl(q_{2j-1}^\top \tilde{F}_s, \;\;
+    q_{2j}^\top \tilde{F}_s\bigr) \;\in\; \mathbb{R}^2.
+\end{equation}
+This is the BCA analogue of the PCA projection in
+equation~\eqref{eq:pca-projection}: instead of projecting onto
+directions of maximum variance, we project onto planes of maximum
+directed flow.
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=\linewidth]{figures_ga_learning/bca_phase_portrait.pdf}
+\caption{\textbf{BCA phase portrait.}
+Each trajectory is projected onto the top two principal planes of
+directed flow ($\omega_1 = 2.12$, $\omega_2 = 1.40$) using
+equation~\eqref{eq:bca-projection}.
+Arrows show the temporal direction.
+Adversarial (purple) traces a large, structured orbit ---
+its directed flow dominates both planes.
+Retrieval (blue) and Reasoning (orange) stay compact near the
+origin.  Compare with Figure~\ref{fig:phase-portrait}: PCA shows
+\emph{where} each trajectory spreads; BCA shows \emph{which
+direction} it flows.}
+\label{fig:bca-phase}
+\end{figure}
+
+\begin{finding}
+\textbf{BCA separates three generation regimes by their directional
+structure}
+(observed in Qwen2.5-7B across three prompt categories).
+
+\medskip
+\begin{center}
+\renewcommand{\arraystretch}{1.3}\small
+\begin{tabular}{@{} l c c c l @{}}
+\toprule
+\textbf{Prompt} & \textbf{Dir.\ flow} $\Omega$
+  & \textbf{Coherence} $\Psi$ & $\|B\|/\|C\|$
+  & \textbf{Description} \\
+\midrule
+Retrieval   & 32.2 & 0.08 & 0.23 & Steady forward drift \\
+Reasoning   & 24.8 & 0.08 & 0.16 & Weak, dispersed movement \\
+Adversarial & 34.4 & 0.18 & 0.21 & Concentrated single-plane cycle \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\smallskip
+\noindent\emph{Note:} These are single-run point estimates (50 decode
+steps); see the statistical caveat above.
+
+\medskip
+PCA and BCA are complementary:
+\begin{itemize}[nosep]
+\item \textbf{PCA} shows that the Adversarial trajectory covers the
+  most territory (highest variance).
+\item \textbf{BCA} shows that it is also the most \emph{organised}
+  (highest coherence), with its sequential structure concentrated
+  in one plane --- the repetition plane.
+\item Retrieval has the highest asymmetry ratio at longer lags:
+  its trajectory has the strongest forward direction, even
+  though PCA shows less variance than Adversarial.
+\item Reasoning scores lowest on all BCA metrics, consistent with
+  its irregular, multi-directional path.
+\end{itemize}
+
+The decomposition $M_\tau = C_\tau + B_\tau$ (symmetric $+$
+antisymmetric) is conceptually analogous to the versor decomposition
+$T = RP$ from Chapter~\ref{chap:versor} (stretching $+$ rotation):
+both separate an object into a symmetric and an antisymmetric part.
+The analogy should not be pushed too far --- $T = RP$ is
+multiplicative and acts on single-layer transformations, while
+$M_\tau = C_\tau + B_\tau$ is additive and characterises a time
+series --- but both share the principle that the antisymmetric
+component carries the oriented, directional information.
 \end{finding}
 
 \begin{gabox}
-\textbf{Generation as boundary evolution.}
-In the field-theoretic language of
-Chapter~\ref{chap:conclusion}, the static hidden-state field
-$H(l, t)$ is a connection on the layer--token grid.  Generation
-extends the grid by appending columns at the causal boundary.
-Each new column's geometry is determined by:
+\textbf{Generation as sequential extension of the layer--token
+grid.}
+Parts~I--IV analysed the hidden-state grid $H(l, t)$ for a fixed
+token sequence.  During generation, the model extends this grid one
+column at a time.  Each new column is determined by:
 \begin{enumerate}[nosep]
-\item The existing field (via the KV cache).
-\item The dynamics (the model's forward pass).
-\item The boundary condition (the frontier at the previous step).
+\item The existing hidden states (cached in the KV store).
+\item The model's forward pass (the transition map~$\Phi$).
+\item The frontier column at the previous step.
 \end{enumerate}
 
-The frontier GA framework provides the coordinate system for this
-boundary evolution: bivectors name the rotation planes, capacity
-measures the computational complexity, and holonomy measures the
-curvature at the expanding edge.
-The static picture of Parts~I--IV is the \emph{initial condition};
-the frontier dynamics of Part~V is the \emph{evolution equation}.
+The static analysis of Parts~I--IV supplies the \emph{starting
+point}; the frontier analysis of Part~V describes how the grid
+\emph{grows}.  PCA captures the spread of this growth; BCA
+captures its direction.
 \end{gabox}
 
 
@@ -5851,6 +6278,17 @@ Several directions remain open:
   additive structure as a translation.  At the frontier, this
   would unify the rotation (grade-2) and residual
   (grade-1/translation) components into a single algebraic object.
+
+\item \textbf{Statistical reliability of BCA diagnostics.}
+  The BCA metrics are estimated from short trajectories
+  ($S \approx 40$--$60$ decode steps), yielding effective sample
+  sizes as low as $S - \tau \approx 31$ at lag~$\tau = 9$.
+  Bootstrap confidence intervals over multiple generation runs,
+  or permutation tests that shuffle the temporal order, would
+  quantify the reliability of the regime separations in
+  Section~\ref{sec:pred-bca} and establish whether the observed
+  differences (e.g.\ coherence $0.18$ vs.\ $0.08$) are
+  statistically significant.
 \end{enumerate}
 
 
@@ -5991,10 +6429,13 @@ prediction and intervention pipeline.
 \begin{whycare}
 This chapter applies everything you have learned to four practical
 problems: interpreting what transformers compute, detecting when a model
-ignores context, diagnosing hallucinations, and steering model behavior
+ignores context, diagnosing hallucinations, and steering model behaviour
 via plane-specific interventions.  Each application uses the full GA
-toolkit --- bivectors, holonomy, commutators, dependency --- and
-introduces new mathematical objects (the Cayley bivector and the
+toolkit --- bivectors (Chapter~\ref{chap:bivectors}), holonomy
+(Chapter~\ref{chap:holonomy}), commutators
+(Chapter~\ref{chap:commutators}), dependency
+(Chapter~\ref{chap:dependency}) --- and introduces new mathematical
+objects (the Cayley bivector from Chapter~\ref{chap:rotors} and the
 directional--radial decomposition) that connect GA to modern
 interpretability research.
 \end{whycare}
@@ -6130,9 +6571,10 @@ profile.
   all three show the three-phase structure.
   (b)~Commutator norm: the peak layer shifts with prompt type,
   indicating different loci of cross-layer interaction.
-  (c)~Effective work $D_l \times \theta^{(l)}$: the mechanistic
-  bottleneck is concentrated in the first few layers for Retrieval
-  but spreads deeper for Reasoning.}
+  (c)~Effective work $D_l \times \theta^{(l)}$
+  (Chapter~\ref{chap:dependency}): the mechanistic bottleneck is
+  concentrated in the first few layers for Retrieval but spreads
+  deeper for Reasoning.}
 \label{fig:mech-interp}
 \end{figure}
 
@@ -6388,8 +6830,10 @@ its prior despite available context.
 
 \subsection{The Cayley bivector}
 
-The key mathematical object is the \textbf{Cayley bivector}, which
-encodes the rotation mapping $u_\pi$ to $v_q$ in linearised form:
+The key mathematical object is the \textbf{Cayley bivector}
+(introduced in Chapter~\ref{chap:rotors},
+Section~\ref{sec:matrix-to-rotor}), which encodes the rotation
+mapping $u_\pi$ to $v_q$ in linearised form:
 
 \begin{gabox}
 \textbf{Cayley bivector.}
@@ -6534,7 +6978,7 @@ All $\tau$ values are far above the vibe threshold of $0.05$, confirming
 the model \emph{is} using context.  The steering magnitude peaks at
 layer~18 ($\theta = 36.5^\circ$) --- the model's representation shifts
 most strongly in the middle-to-late layers.  The Cayley bivector at the
-peak layer decomposes into a dominant principal plane with angle $0.33$
+peak layer decomposes into a dominant principal plane (Section~\ref{sec:principal-planes}) with angle $0.33$
 rad, identifying the specific 2D subspace where context rotates the
 representation.
 
@@ -6656,10 +7100,10 @@ all 28 layers.
 \midrule
 Mean rotation angle & $6.78^\circ$ & $7.50^\circ$ \\
 Max rotation angle & $8.85^\circ$ & $9.96^\circ$ \\
-$D_{\text{total}}$ & 3.13 & 0.75 \\
+$D_{\text{total}}$ (Chapter~\ref{chap:dependency}) & 3.13 & 0.75 \\
 $H(D)$ (entropy) & 2.04 & 2.36 \\
 Horizon-90 & layer 8 & layer 17 \\
-$C_{\text{acc}}$ & 1830.6 & 2931.3 \\
+$C_{\text{acc}}$ (Chapter~\ref{chap:capacity}) & 1830.6 & 2931.3 \\
 Concentration $\mathcal{K}$ & 0.05 & 0.06 \\
 \bottomrule
 \end{tabular}
@@ -6816,7 +7260,7 @@ without requiring ground-truth labels.
 
 When multiple reasoning chains are sampled, their embeddings
 $v_1, \ldots, v_K$ form a Gram matrix $G_{ij} = v_i^\top v_j$.
-The \textbf{Gram condition number} $\kappa_G$ --- the ratio of the
+The \textbf{Gram condition number} $\kappa_G$ (Chapter~\ref{chap:eigenvalues}) --- the ratio of the
 largest to smallest eigenvalue of $G$ --- measures the anisotropy
 of this cloud.  Note that $\kappa_G$ characterises the \emph{inter-chain}
 geometry (how reasoning paths relate to each other), unlike the
@@ -6871,7 +7315,7 @@ Form the $2 \times 2$ matrix of their inner products:
 \end{equation}
 The numerator $\det S$ is a \textbf{signed oriented area}: it equals
 the inner product between the bivectors $u_i \op u_{i+1}$ and
-$c_q \op c_{\text{ctx}}$.  The denominator normalises by the product
+$c_q \op c_{\text{ctx}}$ (Chapter~\ref{chap:bivectors}).  The denominator normalises by the product
 of their areas.
 \end{gabox}
 
@@ -7838,6 +8282,7 @@ through two sub-components applied in sequence: \emph{causal}
 self-attention and a feed-forward network.
 
 \subsection*{Self-attention}
+\label{sec:self-attention}
 
 Self-attention is the mechanism by which tokens communicate.  At each
 layer, every token ``looks at'' all other tokens and computes a
@@ -8477,6 +8922,41 @@ from layer_time_ga.capacity import (
 )
 \end{lstlisting}
 
+\section{BCA: \texttt{layer\_time\_ga.bca}}
+
+Bivector Component Analysis decomposes the lagged second-moment matrix
+of a frontier trajectory into symmetric (PCA) and antisymmetric
+(bivector / directed flow) components
+(Section~\ref{sec:pred-bca}).
+
+\begin{lstlisting}[caption={BCA module API}]
+from layer_time_ga.bca import (
+    bca_decompose,       # single lag decomposition -> BCAResult
+    bca_lag_sweep,       # sweep across lags -> BCALagSweep
+    bca_rolling,         # rolling-window BCA -> RollingBCAResult
+    bca_phase_portrait,  # phase portrait on bivector planes
+    frontier_bca,        # convenience: GenerationResult -> BCAResult
+)
+
+# Quick usage with a GenerationResult:
+r = frontier_bca(gen.frontier_whitened, lag=1)
+print(f"Vorticity: {r.vorticity:.2f}")
+print(f"Coherence: {r.coherence:.4f}")
+print(f"Asymmetry: {r.asymmetry_ratio:.4f}")
+
+# Lag sweep to detect characteristic time scales:
+sweep = bca_lag_sweep(F_avg, lags=range(1, 16))
+
+# Rolling window for temporal evolution:
+roll = bca_rolling(F_avg, window=15, lag=1)
+
+# Phase portrait on principal bivector planes:
+portrait = bca_phase_portrait(
+    {'Retrieval': F_ret, 'Reasoning': F_reas},
+    lag=1, n_planes=2,
+)
+\end{lstlisting}
+
 
 % ══════════════════════════════════════════════════════════════════════════════
 
@@ -8493,6 +8973,10 @@ from layer_time_ga.capacity import (
 \textcolor{white}{\textbf{Term}} &
 \textcolor{white}{\textbf{Definition}} \\
 \midrule
+BCA (Bivector Component Analysis) &
+  Decomposition of the lagged second-moment matrix into symmetric
+  (PCA) and antisymmetric (bivector) components; the antisymmetric
+  part encodes directed temporal flow. \\
 BCcos (Binet--Cauchy cosine) &
   A signed measure of oriented-area overlap between two bivector planes;
   ranges from $-1$ (anti-aligned) through $0$ (orthogonal) to $+1$ (co-planar). \\
@@ -8563,6 +9047,12 @@ $\tau$ (Cayley magnitude) &
   strength from the Cayley bivector. \\
 Versor decomposition &
   $T = RP$: separating rotation (grade-2) from stretching (grade-0). \\
+Vorticity ($\Omega$) &
+  Sum of BCA rotation strengths $\sum_j \omega_j$; measures total
+  directed temporal flow in a frontier trajectory. \\
+Coherence ($\Psi$) &
+  $\omega_1 / \Omega$: fraction of directed flow in the dominant
+  bivector plane; high = concentrated, low = dispersed. \\
 Whitening &
   PCA-based dimensionality reduction (PCA projection followed by unit-variance rescaling) that constructs an orthonormal frame. \\
 \bottomrule
