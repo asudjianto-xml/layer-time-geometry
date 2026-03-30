@@ -71,16 +71,16 @@
 \begin{columns}[T]
 \begin{column}{0.55\textwidth}
 \begin{enumerate}
-  \item \textbf{The Standard Picture} \hfill \textcolor{gray}{10 min}\\
+  \item \textbf{The Standard Picture} \hfill \textcolor{gray}{8 min}\\
     {\small Tokens, layers, hidden states}
   \item \textbf{Layers as Rotations} \hfill \textcolor{gray}{12 min}\\
-    {\small Versors, bivectors, rotation planes}
-  \item \textbf{When Order Matters} \hfill \textcolor{gray}{10 min}\\
+    {\small Versors, bivectors, the metric as gauge}
+  \item \textbf{When Order Matters} \hfill \textcolor{gray}{8 min}\\
     {\small Commutators, curvature, capacity}
-  \item \textbf{The Decode Frontier} \hfill \textcolor{gray}{12 min}\\
-    {\small Generation, hallucination signatures}
-  \item \textbf{Seeing Inside \& Steering} \hfill \textcolor{gray}{10 min}\\
-    {\small Dependency, intervention, the big picture}
+  \item \textbf{The Decode Frontier} \hfill \textcolor{gray}{14 min}\\
+    {\small Generation, directed flow, BCA}
+  \item \textbf{Seeing Inside \& Steering} \hfill \textcolor{gray}{12 min}\\
+    {\small Hallucination, monitoring, intervention}
   \item \textbf{Q\&A} \hfill \textcolor{gray}{6 min}
 \end{enumerate}
 \end{column}
@@ -202,7 +202,8 @@ Every forward pass produces a \textbf{grid} of hidden states:
   \item Retains $>99\%$ of variance
   \item Establishes an \textbf{orthonormal frame}
   \item Angles and rotations become \emph{meaningful}
-  \item Required for valid GA in $\mathrm{Cl}(256, 0)$
+  \item Acts as a \textbf{gauge}: the ``ruler'' for all
+    subsequent measurements
 \end{itemize}
 \end{column}
 \begin{column}{0.48\textwidth}
@@ -240,11 +241,14 @@ Each layer transition decomposes as:
 \end{column}
 \end{columns}
 
-\vspace{0.5em}
+\vspace{0.3em}
 \begin{center}
 \alert{Key finding:} Rotation dominates stretch by \textbf{10--15$\times$} in norm.\\
 \textbf{Layers mostly rotate} --- they redirect meaning, not rescale it.
 \end{center}
+
+\vspace{-0.3em}
+{\scriptsize\textcolor{gray}{Connection: $T^{(l)} \approx \partial H^{(l+1)}/\partial H^{(l)}$ --- the versor \emph{is} the layer Jacobian.  Rotation = reorientation of meaning; stretch = gain control.}}
 \end{frame}
 
 % ── Slide: Grade profile ─────────────────────────────────────────────────────
@@ -524,6 +528,79 @@ The \textbf{decode frontier} is the evolving right edge.
 \textbf{Takeaway:} Capacity decays as the model generates --- its sequential-reasoning budget \emph{drains}. Retrieval stays high and stable; adversarial declines into periodic cycling, signaling the model is running low on compositional resources.}
 \end{frame}
 
+% ── Slide: PCA vs BCA ───────────────────────────────────────────────────────
+\begin{frame}{PCA sees spread; BCA sees direction}
+\vspace{-0.3em}
+{\small The frontier is an \textbf{ordered sequence}.
+PCA (symmetric covariance) cannot distinguish ``step~5 $\to$ step~10'' from ``step~10 $\to$ step~5.''}
+
+\vspace{-0.2em}
+\[
+  M_\tau = \underbrace{\tfrac{1}{2}(M_\tau + M_\tau^\top)}_{\displaystyle C_\tau
+    \;\text{\scriptsize(symmetric --- PCA)}}
+  + \underbrace{\tfrac{1}{2}(M_\tau - M_\tau^\top)}_{\displaystyle B_\tau
+    \;\text{\scriptsize(antisymmetric --- \textbf{BCA})}}
+\]
+
+\vspace{-0.5em}
+\begin{columns}[T]
+\begin{column}{0.48\textwidth}
+\textbf{Symmetric} $C_\tau$ (PCA)
+\begin{itemize}\small\setlength{\itemsep}{1pt}
+  \item Finds directions of max \emph{spread}
+  \item Blind to temporal order
+  \item Treats forward = backward
+\end{itemize}
+\end{column}
+\begin{column}{0.48\textwidth}
+\textbf{Antisymmetric} $B_\tau$ (BCA)
+\begin{itemize}\small\setlength{\itemsep}{1pt}
+  \item Finds planes of max \emph{directed flow}
+  \item $B_\tau$ is a \textbf{bivector}
+  \item Reverses sign if time runs backward
+\end{itemize}
+\end{column}
+\end{columns}
+
+\vspace{0.4em}
+\begin{center}
+\fcolorbox{Teal}{Teal!8}{\parbox{0.75\textwidth}{\centering\small
+\textbf{PCA sees where the frontier \emph{is}.  BCA sees where the frontier \emph{goes}.}}}
+\end{center}
+\end{frame}
+
+% ── Slide: BCA empirical results ────────────────────────────────────────────
+\begin{frame}{BCA detects the repetition cycle}
+\vspace{-0.3em}
+\begin{columns}[c]
+\begin{column}{0.48\textwidth}
+\includegraphics[width=\linewidth]{figures_ga_learning/bca_lag_sweep.pdf}
+\vspace{-0.3em}
+{\scriptsize\textbf{Figure:} BCA lag sweep. At lag~9 (the repetition cycle), Adversarial shows a sharp drop in directed flow and spike in coherence.}
+\end{column}
+\begin{column}{0.48\textwidth}
+\includegraphics[width=\linewidth]{figures_ga_learning/bca_phase_portrait.pdf}
+\vspace{-0.3em}
+{\scriptsize\textbf{Figure:} BCA phase portrait. Trajectories projected onto the top two \emph{directed-flow} planes. Adversarial (purple) traces a large structured orbit.}
+\end{column}
+\end{columns}
+
+\vspace{0.2em}
+{\small Three diagnostics from $B_\tau$:}
+\vspace{-0.3em}
+\begin{columns}[T]
+\begin{column}{0.30\textwidth}
+{\scriptsize\textbf{Directed flow} $\Omega$\\Total temporal asymmetry}
+\end{column}
+\begin{column}{0.30\textwidth}
+{\scriptsize\textbf{Coherence} $\Psi = \omega_1/\Omega$\\Flow concentration in one plane}
+\end{column}
+\begin{column}{0.32\textwidth}
+{\scriptsize\textbf{Asymmetry ratio} $\|B\|/\|C\|$\\Directional vs.\ undirected}
+\end{column}
+\end{columns}
+\end{frame}
+
 % ── Slide: Hallucination ─────────────────────────────────────────────────────
 \begin{frame}{Hallucination as geometric collapse}
 \vspace{-0.3em}
@@ -568,6 +645,32 @@ Curvature accel. & $0.186$ & $0.221$ \\
 % ╚════════════════════════════════════════════════════════════════════════════╝
 
 \section{Seeing Inside and Steering}
+
+% ── Slide: Online monitoring ─────────────────────────────────────────────────
+\begin{frame}{Online monitoring: catching failure in real time}
+\vspace{-0.3em}
+\begin{columns}[c]
+\begin{column}{0.46\textwidth}
+\includegraphics[width=\linewidth]{figures_ga_learning/ch17_online_scores_3prompts.pdf}
+\vspace{-0.3em}
+{\scriptsize\textbf{Figure:} Online quality scores during generation.  The Adversarial prompt crosses the alert threshold at step~42 --- \textbf{before} human-visible repetition begins.}
+\end{column}
+\begin{column}{0.50\textwidth}
+{\small Three scores computed at each decode step:}
+\begin{enumerate}\small\setlength{\itemsep}{2pt}
+  \item \textbf{Capacity growth rate} --- is the model's
+    sequential budget draining too fast?
+  \item \textbf{Plane diversity} --- are rotation planes
+    collapsing into one?
+  \item \textbf{Curvature acceleration} --- is the geometry
+    becoming unstable?
+\end{enumerate}
+
+\vspace{0.3em}
+{\small\alert{Key result:} GA-based monitoring detects degradation \textbf{$\sim$8 steps before} token-level repetition becomes visible.}
+\end{column}
+\end{columns}
+\end{frame}
 
 % ── Slide: Which layers matter ───────────────────────────────────────────────
 \begin{frame}{Which layers matter?}
@@ -632,6 +735,47 @@ Boiling point & 16 & 0.77 & $250^{\circ}$C \\
 
 \vspace{0.2em}
 {\small\alert{One GA object --- the Cayley bivector --- provides detection, diagnosis, and control.}}
+\end{column}
+\end{columns}
+\end{frame}
+
+% ── Slide: Random steering fails ────────────────────────────────────────────
+\begin{frame}{Why the plane matters: random steering fails}
+\vspace{-0.3em}
+\begin{columns}[c]
+\begin{column}{0.48\textwidth}
+\begin{center}
+\begin{tikzpicture}[>=Stealth, scale=0.85, font=\small]
+  % Orbit
+  \draw[Purple, thick] (0,0) ellipse (1.4 and 0.9);
+  \node[Purple, font=\scriptsize] at (0, -1.25) {repetition orbit};
+  % Random arrow
+  \draw[->, DRed, very thick, dashed] (0.5, 0.3) -- (1.8, 1.5)
+    node[right, font=\scriptsize] {random plane};
+  % Projection back
+  \draw[->, gray, thick, dotted] (1.6, 1.3) -- (0.8, 0.6);
+  \node[gray, font=\scriptsize] at (2.3, 0.7) {projected back};
+  % Orbit plane arrow
+  \draw[->, DGreen, very thick] (-0.3, -0.1) -- (0.7, 0.5)
+    node[right, font=\scriptsize, DGreen] {orbit plane};
+\end{tikzpicture}
+\end{center}
+
+\vspace{0.2em}
+{\scriptsize In $k{=}256$ dimensions, a random 2D plane is overwhelmingly unlikely to overlap with the orbit's specific 2D subspace.}
+\end{column}
+\begin{column}{0.50\textwidth}
+{\small \textbf{Experiment}: apply random-plane rotations at the frontier to break the adversarial repetition cycle.}
+
+\vspace{0.2em}
+\begin{itemize}\small\setlength{\itemsep}{2pt}
+  \item Even at $\alpha = 0.20$ rad: \textbf{orbit persists}
+  \item The model's nonlinear layers project the perturbation \textbf{back onto the attractor}
+  \item \alert{Steering must target the right plane} --- the one the model actually uses
+\end{itemize}
+
+\vspace{0.2em}
+{\small This negative result motivates the Cayley steering recipe: use the model's \emph{own} rotation planes.}
 \end{column}
 \end{columns}
 \end{frame}
@@ -722,8 +866,9 @@ GA tells you \textbf{how much} and \textbf{in which direction}.
 \textbf{Dynamic} (during generation):
 \begin{enumerate}\small\setcounter{enumi}{4}
   \item How rotation planes drift or collapse
+  \item \textbf{Directed flow} via BCA (temporal order)
   \item Whether capacity decay signals hallucination
-  \item Whether reasoning is causally aligned with context
+  \item Real-time monitoring \emph{before} failure
 \end{enumerate}
 \end{column}
 \end{columns}
@@ -745,13 +890,14 @@ whose computation is governed by rotations and curvature.}}}
 \toprule
 \textbf{Concept} & \textbf{Intuition} & \textbf{GA object} \\
 \midrule
-Versor decomp. & How much a layer rotates vs.\ stretches & $T = R \cdot P$ \\
-Bivector field & Which directions each layer reshuffles & $B^{(l)} \in \mathfrak{so}(k)$ \\
+Versor decomp. & Layer rotates vs.\ stretches & $T = R \cdot P$ \\
+Bivector field & Which directions reshuffled & $B^{(l)} \in \mathfrak{so}(k)$ \\
 Commutator & Does layer order matter? & $[B^{(l)}, B^{(l+1)}]$ \\
-Capacity & Total sequential computation budget & $C_{\text{acc}} = \sum \|[\cdot]\|_F$ \\
-Holonomy & Are layers and context entangled? & $R_{\text{loop}}$ \\
-Dependency & Which layers the output cares about & $D_l = \|\partial s / \partial H^{(l)}\|_F$ \\
-Frontier & How geometry evolves during generation & Bivectors at decode edge \\
+Capacity & Sequential computation budget & $C_{\text{acc}} = \sum \|[\cdot]\|_F$ \\
+Holonomy & Layer--context entanglement & $R_{\text{loop}}$ \\
+Dependency & Which layers matter & $D_l = \|\partial s / \partial H^{(l)}\|_F$ \\
+BCA & Directed temporal flow & $B_\tau = (M - M^\top)/2$ \\
+Monitoring & Real-time failure detection & Quality scores at frontier \\
 \bottomrule
 \end{tabular}
 \end{center}
@@ -762,7 +908,8 @@ Frontier & How geometry evolves during generation & Bivectors at decode edge \\
   \item Transformer layers are predominantly \textbf{rotations} in high-dimensional space
   \item \textbf{Non-commutativity} between layers is the geometric basis of sequential reasoning
   \item \textbf{Curvature} reveals where layer and token processing are entangled
-  \item Hallucination produces a measurable \textbf{geometric signature} during generation
+  \item \textbf{BCA} recovers temporal direction that PCA discards --- the antisymmetric part is a bivector
+  \item Hallucination produces a measurable \textbf{geometric signature} detectable in real time
   \item Geometric understanding enables \textbf{plane-specific intervention}
 \end{itemize}
 \end{frame}
