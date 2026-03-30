@@ -1939,6 +1939,68 @@ positive-definite factor~$P$.  We build the rotor field and
 see how information rotates and stretches across the entire network.
 \end{whycare}
 
+% ── Technical sidebar: justifying linearization ─────────────────────────────
+\subsection*{Why a linear operator?}
+\label{sec:linearization-case}
+
+A central methodological choice in this laboratory is the
+representation of fundamentally nonlinear transformer layers via a
+linear \textbf{layer transition operator} $T^{(l)}$.  While a
+model's global function involves nonlinear activations like SiLU and
+Softmax, the use of a linear operator is justified by four factors.
+
+\begin{enumerate}[nosep,leftmargin=*]
+
+\item \textbf{The local Jacobian view.}
+We do not treat $T^{(l)}$ as a global replacement for the layer.
+Instead, it serves as a \textbf{local linearisation}: the layer's
+Jacobian matrix---the collection of first-order partial derivatives
+$\partial H^{(l+1)}/\partial H^{(l)}$---that captures the
+sensitivity of the output to the input at a specific operating point
+in representation space.  This is the standard tool of differential
+analysis applied to neural networks; it is exact in the limit of
+infinitesimal perturbation and informative whenever the layer is
+``smooth enough'' near the operating point.
+
+\item \textbf{Architectural continuity.}
+Modern decoder-only transformers use \textbf{residual connections},
+where the output is added to the input:
+$H^{(l+1)} = H^{(l)} + \mathrm{Update}^{(l)}$.  This additive
+structure ensures that hidden states evolve through incremental
+changes rather than total overwrites, making the layer-to-layer map
+close to the identity and keeping the linear approximation
+well-conditioned.
+
+\item \textbf{Subspace restriction.}
+We do not attempt to linearise the full ambient space
+($p = 3584$ for Qwen2.5-7B).  By restricting the operator to the
+\textbf{joint token subspace} (rank $r \le 2T$; see
+Section~\ref{sec:extracting-rotor}), the least-squares fit is
+numerically stable and focuses strictly on the dimensions where the
+model is actively processing token data.
+
+\item \textbf{Empirical utility.}
+The validity of the linear model is ultimately demonstrated by its
+results.  The linear rotor field consistently identifies a
+functional \textbf{three-phase structure} (Embedding, Interaction,
+and Readout; Section~\ref{sec:three-phase}) across different models
+and prompts.  Furthermore, linear interventions like Cayley steering
+(Chapter~\ref{chap:capacity}) successfully override nonlinear
+parametric priors, confirming that $T^{(l)}$ captures the model's
+primary mechanism for steering representations.
+\end{enumerate}
+
+\begin{pitfall}
+\textbf{Linearisation is local, not global.}
+The operator $T^{(l)}$ describes the layer's behaviour at one
+specific input (one prompt, one token configuration).  It does not
+claim that the layer \emph{is} linear in general.  Different inputs
+produce different Jacobians, and thus different rotors.  All
+geometric quantities in this book---rotation angles, commutators,
+curvature---are properties of the linearisation at the observed
+operating point, not global layer properties.
+\end{pitfall}
+
 \section{The versor decomposition}
 
 Each layer transition operator $T^{(l)}$ (the linear map that best
@@ -1981,6 +2043,7 @@ importance.
 \end{keyidea}
 
 \section{Extracting the rotor field}
+\label{sec:extracting-rotor}
 
 Before we show the extraction code, let us clarify what a ``rotor
 field'' is and why we need one.
@@ -2339,6 +2402,7 @@ representation concentrates into a lower-dimensional subspace.
 \end{finding}
 
 \section{The three-phase structure}
+\label{sec:three-phase}
 
 When you look at all three signatures together --- rotation angles,
 condition numbers, and effective ranks --- a consistent pattern emerges
