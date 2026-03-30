@@ -155,12 +155,13 @@
 \begin{column}{0.50\textwidth}
 Every forward pass produces a \textbf{grid} of hidden states:
 \[
-  H : (l, t) \;\longmapsto\; \mathbb{R}^{k}
+  H : (l, t) \;\longmapsto\; \mathbb{R}^{p}
+  \quad (p = 3584\text{ for Qwen2.5-7B})
 \]
 \vspace{-0.5em}
 \begin{itemize}
-  \item Vertical axis: \textbf{layers} (depth)
-  \item Horizontal axis: \textbf{token positions} (context)
+  \item Vertical axis: \textbf{layers} ($L = 28$)
+  \item Horizontal axis: \textbf{token positions} ($T$ tokens)
   \item Every dot is a high-dimensional vector
 \end{itemize}
 
@@ -209,7 +210,7 @@ Every forward pass produces a \textbf{grid} of hidden states:
 \begin{column}{0.48\textwidth}
 \includegraphics[width=\linewidth]{figures_ga_learning/ch04_covariance.pdf}
 \vspace{-0.3em}
-{\scriptsize\textbf{Figure:} Eigenvalue spectrum of the covariance. After whitening, retained dimensions have equal variance --- distances and angles become trustworthy.}
+{\scriptsize\textbf{Figure:} Covariance structure before and after whitening. After whitening, the covariance is the identity --- distances and angles become trustworthy.}
 \end{column}
 \end{columns}
 \end{frame}
@@ -217,10 +218,12 @@ Every forward pass produces a \textbf{grid} of hidden states:
 % ── Slide: The versor decomposition ──────────────────────────────────────────
 \begin{frame}{What a layer does: rotation $\times$ stretch}
 
-Each layer transition decomposes as:
+Each layer transition (averaged across token positions) decomposes as:
 \[
   \boxed{T^{(l)} \;=\; \underbrace{\rotor{l}}_{\text{rotation}} \;\cdot\; \underbrace{\metric{l}}_{\text{stretch}}}
 \]
+\vspace{-0.3em}
+{\scriptsize (Attention makes $T$ position-dependent; we'll see per-token rotors on the next slides.)}
 
 \begin{columns}[T]
 \begin{column}{0.48\textwidth}
@@ -243,7 +246,7 @@ Each layer transition decomposes as:
 
 \vspace{0.3em}
 \begin{center}
-\alert{Key finding:} Rotation dominates stretch by \textbf{10--15$\times$} in norm.\\
+\alert{Empirical finding (Qwen2.5-7B):} Rotation dominates stretch by \textbf{10--15$\times$} in norm.\\
 \textbf{Layers mostly rotate} --- they redirect meaning, not rescale it.
 \end{center}
 
@@ -259,8 +262,8 @@ Each layer transition decomposes as:
 
 \vspace{-0.5em}
 {\small
-\textbf{Reading the figure:} Each panel shows one prompt type. Blue bars = rotation (grade-2) norm; purple bars = stretch (grade-0) norm, per layer.
-\textbf{Takeaway:} Blue towers over purple at every layer --- rotation outweighs stretch by \textbf{10--15$\times$}. Layers reshape \emph{which directions} matter, not how big they are.}
+Blue = rotation (grade-2) norm; purple = stretch (grade-0) norm, per layer and prompt type.
+Rotation outweighs stretch by \textbf{10--15$\times$} at every layer --- layers reshape \emph{which directions} matter, not how big they are.}
 \end{frame}
 
 % ── Slide: Bivectors — the plane of rotation ─────────────────────────────────
@@ -360,7 +363,7 @@ each rotating the hidden state in its own plane by its own angle.
 \begin{column}{0.48\textwidth}
 \includegraphics[width=\linewidth]{figures_ga_learning/ch09_commutator_3prompts.pdf}
 \vspace{-0.3em}
-{\scriptsize\textbf{Figure:} Each bar = $\|[\bivec{l}, \bivec{l+1}]\|_F$ for one layer pair. Tall bars = strong sequential coupling.}
+{\scriptsize\textbf{Figure:} Commutator norm $\|[\bivec{l}, \bivec{l+1}]\|_F$ per layer pair. Higher = stronger sequential coupling.}
 \end{column}
 \end{columns}
 \end{frame}
@@ -512,8 +515,8 @@ The \textbf{decode frontier} is the evolving right edge.
 
 \vspace{-0.8em}
 {\small
-\textbf{Reading the figure:} Each curve tracks the rotation angle at the newest generated token, plotted against decode step. Each line is a different layer.
-\textbf{Takeaway:} Rotation planes are \textbf{not preserved} across steps --- they drift as context grows. Adversarial prompts show periodic cycling that mirrors stuck token loops.}
+Rotation angle at the newest generated token vs.\ decode step; each line is one layer.
+Rotation planes \textbf{drift} as context grows. Adversarial prompts show periodic cycling that mirrors stuck token loops.}
 \end{frame}
 
 % ── Slide: Frontier capacity ─────────────────────────────────────────────────
@@ -524,8 +527,8 @@ The \textbf{decode frontier} is the evolving right edge.
 
 \vspace{-0.5em}
 {\small
-\textbf{Reading the figure:} $x$-axis = decode step (tokens generated so far); $y$-axis = frontier capacity $C_{\text{acc}}$ at that step. Each curve is one prompt type.
-\textbf{Takeaway:} Capacity decays as the model generates --- its sequential-reasoning budget \emph{drains}. Retrieval stays high and stable; adversarial declines into periodic cycling, signaling the model is running low on compositional resources.}
+Frontier capacity $C_{\text{acc}}$ vs.\ decode step for three prompt types.
+Capacity decays during generation. Retrieval stays high and stable; adversarial declines into periodic cycling, suggesting the model is running low on compositional resources.}
 \end{frame}
 
 % ── Slide: PCA vs BCA ───────────────────────────────────────────────────────
@@ -599,6 +602,9 @@ PCA (symmetric covariance) cannot distinguish ``step~5 $\to$ step~10'' from ``st
 {\scriptsize\textbf{Asymmetry ratio} $\|B\|/\|C\|$\\Directional vs.\ undirected}
 \end{column}
 \end{columns}
+
+\vspace{0.2em}
+{\scriptsize\textcolor{gray}{Statistical caveat: with ${\sim}60$ decode steps and $k{=}256$, the antisymmetric component $B_\tau$ can be noisy.  The diagnostics above are computed from whitened, centred trajectories and averaged across layers to mitigate finite-sample bias.}}
 \end{frame}
 
 % ── Slide: Hallucination ─────────────────────────────────────────────────────
@@ -634,7 +640,7 @@ Curvature accel. & $0.186$ & $0.221$ \\
 \end{itemize}
 
 \vspace{0.2em}
-{\small\alert{Hallucination has a measurable geometric signature \emph{during} generation.}}
+{\small\alert{In this model, hallucination has a measurable geometric signature \emph{during} generation.}}
 \end{column}
 \end{columns}
 \end{frame}
@@ -667,7 +673,7 @@ Curvature accel. & $0.186$ & $0.221$ \\
 \end{enumerate}
 
 \vspace{0.3em}
-{\small\alert{Key result:} GA-based monitoring detects degradation \textbf{$\sim$8 steps before} token-level repetition becomes visible.}
+{\small\alert{Empirical result (Qwen2.5-7B):} GA-based monitoring detects degradation \textbf{$\sim$8 steps before} token-level repetition becomes visible in our experiments.}
 \end{column}
 \end{columns}
 \end{frame}
@@ -734,7 +740,7 @@ Boiling point & 16 & 0.77 & $250^{\circ}$C \\
 \end{enumerate}
 
 \vspace{0.2em}
-{\small\alert{One GA object --- the Cayley bivector --- provides detection, diagnosis, and control.}}
+{\small\alert{In this example, one GA object --- the Cayley bivector --- provides detection, diagnosis, and targeted intervention.}}
 \end{column}
 \end{columns}
 \end{frame}
@@ -809,7 +815,7 @@ Single L16 & 2.0 & 1 million (context) \\
 \end{tabular}
 
 \vspace{0.2em}
-{\small\alert{Takeaway:} Multi-layer Cayley steering at moderate $\alpha$ overrides parametric resistance that context alone cannot --- a geometrically targeted nudge in the model's own rotation planes.}
+{\small\alert{Takeaway (single example):} Multi-layer Cayley steering at moderate $\alpha$ can override parametric resistance that context alone cannot --- a geometrically targeted nudge in the model's own rotation planes.}
 \end{column}
 \end{columns}
 \end{frame}
@@ -904,14 +910,13 @@ Monitoring & Real-time failure detection & Quality scores at frontier \\
 
 \vspace{0.1em}
 \textbf{Key takeaways:}\vspace{-0.3em}
-\begin{itemize}\small\setlength{\itemsep}{1pt}
-  \item Transformer layers are predominantly \textbf{rotations} in high-dimensional space
-  \item \textbf{Non-commutativity} between layers is the geometric basis of sequential reasoning
-  \item \textbf{Curvature} reveals where layer and token processing are entangled
-  \item \textbf{BCA} recovers temporal direction that PCA discards --- the antisymmetric part is a bivector
-  \item Hallucination produces a measurable \textbf{geometric signature} detectable in real time
-  \item Geometric understanding enables \textbf{plane-specific intervention}
-\end{itemize}
+\begin{enumerate}\small\setlength{\itemsep}{1pt}
+  \item Layers are predominantly \textbf{rotations}; non-commutativity underlies sequential reasoning
+  \item \textbf{Curvature} reveals layer--context entanglement
+  \item \textbf{BCA} recovers temporal direction that PCA discards
+  \item Hallucination has a measurable \textbf{geometric signature} (in our experiments)
+  \item The Cayley bivector enables \textbf{plane-specific intervention}
+\end{enumerate}
 \end{frame}
 
 % ── Slide: Thank you / Q&A ──────────────────────────────────────────────────
